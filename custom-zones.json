@@ -1,11 +1,11 @@
 [
     {
         "id": 10001,
-        "name": "Example Game",
+        "name": "Music player",
         "author": "Zaapiz",
         "authorLink": "https://www.tiktok.com/@notzaapiz",
-        "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/example.png",
-        "url": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/games/example.html",
+        "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/musicplayer.png",
+        "url": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/customhtmls/musicplayer.html",
         "special": ["custom"]
     }
 ]
