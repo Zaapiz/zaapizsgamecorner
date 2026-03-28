@@ -46,7 +46,7 @@
           newWin.document.open();
           newWin.document.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;}</style></head><body><p>Loading...</p></body></html>');
           newWin.document.close();
-          fetch("https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/package.html?t="+Date.now())
+          fetch("https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/singlefile.html?t="+Date.now())
             .then(response => response.text())
             .then(text => {
               newWin.document.open();
