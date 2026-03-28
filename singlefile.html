@@ -1148,6 +1148,20 @@ function openZone(file) {
             newWin.document.body.style.margin = "0";
             iframe.src = file.url;
             newWin.document.body.appendChild(iframe);
+        } else {
+            // Fallback when popup blocked (e.g. inside loader about:blank)
+            if (zoneFrame.contentDocument === null) {
+                zoneFrame = document.createElement("iframe");
+                zoneFrame.id = "zoneFrame";
+                zoneViewer.appendChild(zoneFrame);
+            }
+            zoneFrame.src = file.url;
+            document.getElementById('zoneName').textContent = file.name;
+            document.getElementById('zoneId').textContent = file.id;
+            document.getElementById('zoneAuthor').textContent = "by " + file.author;
+            if (file.authorLink) document.getElementById('zoneAuthor').href = file.authorLink;
+            zoneViewer.style.display = "block";
+            zoneViewer.hidden = true;
         }
     } else {
         const url = file.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
@@ -1841,57 +1855,73 @@ function deleteCustomGame(index) {
     displayZones(zones);
 }
 
+function buildCustomGameHTML(game) {
+    let html = game.html;
+    if (game.baseUrl) {
+        const baseTag = '<base href="' + game.baseUrl + '">';
+        if (html.includes('<head>')) {
+            html = html.replace('<head>', '<head>' + baseTag);
+        } else if (html.includes('<html>')) {
+            html = html.replace('<html>', '<html><head>' + baseTag + '</head>');
+        } else {
+            html = baseTag + html;
+        }
+    }
+    if (game.css) {
+        const styleTag = '<style>' + game.css + '</style>';
+        if (html.includes('</head>')) {
+            html = html.replace('</head>', styleTag + '</head>');
+        } else if (html.includes('<body>')) {
+            html = html.replace('<body>', styleTag + '<body>');
+        } else {
+            html = styleTag + html;
+        }
+    }
+    if (game.assets && game.assets.length) {
+        game.assets.forEach(entry => {
+            const eq = entry.indexOf('=');
+            if (eq > 0) {
+                const filename = entry.substring(0, eq).trim();
+                const url = entry.substring(eq + 1).trim();
+                if (filename && url) {
+                    html = html.split(filename).join(url);
+                }
+            }
+        });
+    }
+    if (game.jsFiles && game.jsFiles.length) {
+        const scripts = game.jsFiles.map(u => '<script src="' + u.trim() + '"><\/script>').join('\n');
+        if (html.includes('</body>')) {
+            html = html.replace('</body>', scripts + '</body>');
+        } else {
+            html += scripts;
+        }
+    }
+    return html;
+}
+
 function openCustomGame(game) {
+    const html = buildCustomGameHTML(game);
     const newWin = window.open('about:blank', '_blank');
     if (newWin) {
-        let html = game.html;
-        // Inject <base> tag if a base URL is provided
-        if (game.baseUrl) {
-            const baseTag = '<base href="' + game.baseUrl + '">';
-            if (html.includes('<head>')) {
-                html = html.replace('<head>', '<head>' + baseTag);
-            } else if (html.includes('<html>')) {
-                html = html.replace('<html>', '<html><head>' + baseTag + '</head>');
-            } else {
-                html = baseTag + html;
-            }
-        }
-        // Inject CSS if provided
-        if (game.css) {
-            const styleTag = '<style>' + game.css + '</style>';
-            if (html.includes('</head>')) {
-                html = html.replace('</head>', styleTag + '</head>');
-            } else if (html.includes('<body>')) {
-                html = html.replace('<body>', styleTag + '<body>');
-            } else {
-                html = styleTag + html;
-            }
-        }
-        // Replace asset filenames with full URLs
-        if (game.assets && game.assets.length) {
-            game.assets.forEach(entry => {
-                const eq = entry.indexOf('=');
-                if (eq > 0) {
-                    const filename = entry.substring(0, eq).trim();
-                    const url = entry.substring(eq + 1).trim();
-                    if (filename && url) {
-                        html = html.split(filename).join(url);
-                    }
-                }
-            });
-        }
-        // Inject script tags for JS files before </body> or at end
-        if (game.jsFiles && game.jsFiles.length) {
-            const scripts = game.jsFiles.map(u => '<script src="' + u.trim() + '"><\/script>').join('\n');
-            if (html.includes('</body>')) {
-                html = html.replace('</body>', scripts + '</body>');
-            } else {
-                html += scripts;
-            }
-        }
         newWin.document.open();
         newWin.document.write(html);
         newWin.document.close();
+    } else {
+        // Fallback when popup blocked (e.g. inside loader about:blank)
+        if (zoneFrame.contentDocument === null) {
+            zoneFrame = document.createElement("iframe");
+            zoneFrame.id = "zoneFrame";
+            zoneViewer.appendChild(zoneFrame);
+        }
+        zoneFrame.contentDocument.open();
+        zoneFrame.contentDocument.write(html);
+        zoneFrame.contentDocument.close();
+        document.getElementById('zoneName').textContent = game.name;
+        document.getElementById('zoneId').textContent = 'custom';
+        document.getElementById('zoneAuthor').textContent = 'Custom Game';
+        zoneViewer.style.display = "block";
+        zoneViewer.hidden = true;
     }
 }
 
