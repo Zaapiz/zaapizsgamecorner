@@ -785,6 +785,8 @@ footer {
             <h1>Zaapiz's Game Corner</h1>
             <p>All games, covers and assets are kept from the GN-Math engine. Just play.</p>
             <a href="https://www.tiktok.com/@notzaapiz" target="_blank" rel="noopener noreferrer" style="color: white; font-weight: 600; text-decoration: underline; font-size: 1rem;">TikTok: @notzaapiz</a>
+            <br>
+            <button onclick="showAddGame()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">+ Add Custom Game</button>
         </section>
 
         <div id="container">Loading...</div>
@@ -1033,6 +1035,23 @@ function displayZones(zones) {
         zoneItem.appendChild(button);
         container.appendChild(zoneItem);   
     });
+    const customGames = getCustomGames();
+    const query = searchBar.value.toLowerCase();
+    customGames.filter(g => g.name.toLowerCase().includes(query)).forEach(game => {
+        const zoneItem = document.createElement("div");
+        zoneItem.className = "zone-item";
+        zoneItem.onclick = () => openCustomGame(game);
+        const img = document.createElement("img");
+        img.src = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="%236699ff"/><text x="100" y="105" text-anchor="middle" fill="white" font-size="16" font-family="Arial">Custom</text></svg>');
+        img.alt = game.name;
+        zoneItem.appendChild(img);
+        const button = document.createElement("button");
+        button.textContent = game.name;
+        button.onclick = (event) => { event.stopPropagation(); openCustomGame(game); };
+        zoneItem.appendChild(button);
+        container.appendChild(zoneItem);
+    });
+
     if (container.innerHTML === "") {
         container.innerHTML = "No zones found.";
     } else {
@@ -1605,6 +1624,75 @@ function showZoneInfo() {
 function closePopup() {
     document.getElementById('popupOverlay').style.display = "none";
 }
+
+function getCustomGames() {
+    try {
+        return JSON.parse(localStorage.getItem('customGames') || '[]');
+    } catch { return []; }
+}
+
+function saveCustomGames(games) {
+    localStorage.setItem('customGames', JSON.stringify(games));
+}
+
+function showAddGame() {
+    document.getElementById('popupTitle').textContent = "Add Custom Game";
+    const popupBody = document.getElementById('popupBody');
+    popupBody.innerHTML = `
+        <label style="font-weight: bold;">Game Name:</label><br>
+        <input type="text" id="customGameName" placeholder="Enter game name...">
+        <label style="font-weight: bold;">HTML Code:</label><br>
+        <textarea id="customGameHTML" placeholder="Paste your HTML code here..." style="width:100%;min-height:200px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:14px;font-family:monospace;resize:vertical;"></textarea>
+        <br><br>
+        <button onclick="addCustomGame()" style="background:var(--gradient-primary);color:white;border:0;padding:0.75rem 1.5rem;border-radius:var(--radius);cursor:pointer;font-weight:600;font-size:15px;width:100%;">Add Game</button>
+        <br><br>
+        <button onclick="showManageGames()" style="background:none;border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:14px;width:100%;">Manage Custom Games</button>
+    `;
+    popupBody.contentEditable = false;
+    document.getElementById('popupOverlay').style.display = "flex";
+}
+
+function addCustomGame() {
+    const name = document.getElementById('customGameName').value.trim();
+    const html = document.getElementById('customGameHTML').value;
+    if (!name || !html) { alert('Please enter both a name and HTML code.'); return; }
+    const games = getCustomGames();
+    games.push({ name, html, id: 'custom_' + Date.now() });
+    saveCustomGames(games);
+    closePopup();
+    displayZones(zones);
+}
+
+function showManageGames() {
+    const games = getCustomGames();
+    document.getElementById('popupTitle').textContent = "Manage Custom Games";
+    const popupBody = document.getElementById('popupBody');
+    if (games.length === 0) {
+        popupBody.innerHTML = '<p>No custom games added yet.</p>';
+    } else {
+        popupBody.innerHTML = games.map((g, i) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);"><span>${g.name}</span><button onclick="deleteCustomGame(${i})" style="background:none;border:1px solid #ff4d6d;color:#ff4d6d;padding:0.3rem 0.8rem;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Delete</button></div>`).join('');
+    }
+    popupBody.contentEditable = false;
+    document.getElementById('popupOverlay').style.display = "flex";
+}
+
+function deleteCustomGame(index) {
+    const games = getCustomGames();
+    games.splice(index, 1);
+    saveCustomGames(games);
+    showManageGames();
+    displayZones(zones);
+}
+
+function openCustomGame(game) {
+    const newWin = window.open('about:blank', '_blank');
+    if (newWin) {
+        newWin.document.open();
+        newWin.document.write(game.html);
+        newWin.document.close();
+    }
+}
+
 listZones();
 
 HTMLCanvasElement.prototype.toDataURL = function (...args) {
