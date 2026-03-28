@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zaapiz's Game Corner</title>
+    <meta name="description" content="Zaapiz's Game Corner - play free browser games and arcade fun." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="stylesheet" href="style.css" />
+    <meta name="theme-color" content="#fc2651" />
+  </head>
+  <body class="dark-mode">
+    <header>
+      <div class="header-content">
+        <div class="logo">Zaapiz's Game Corner</div>
+        <nav class="top-nav">
+          <a href="#featured">Featured</a>
+          <a href="#popular">Popular</a>
+          <a href="#about">About</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" id="featured">
+        <h1>Welcome to Zaapiz's Game Corner</h1>
+        <p>Fast, fun, free browser arcade and puzzle games with one click play.</p>
+      </section>
+
+      <section class="game-grid" id="popular">
+        <article class="game-card">
+          <h2>Pixel Runner</h2>
+          <p>Dash through obstacles in a fast-paced retro runner.</p>
+          <button onclick="openGame('https://example.com/pixel-runner')">Play Now</button>
+        </article>
+
+        <article class="game-card">
+          <h2>Rocket Smash</h2>
+          <p>Blast asteroids while upgrading your jetpack in this space shooter.</p>
+          <button onclick="openGame('https://example.com/rocket-smash')">Play Now</button>
+        </article>
+
+        <article class="game-card">
+          <h2>Puzzle Portal</h2>
+          <p>Solve brain-teasing levels to unlock mysterious worlds.</p>
+          <button onclick="openGame('https://example.com/puzzle-portal')">Play Now</button>
+        </article>
+
+        <article class="game-card">
+          <h2>Castle Defense</h2>
+          <p>Defend your fortress with strategy and tower upgrades.</p>
+          <button onclick="openGame('https://example.com/castle-defense')">Play Now</button>
+        </article>
+      </section>
+
+      <section class="about" id="about">
+        <h2>About Zaapiz's Game Corner</h2>
+        <p>
+          This portal is built for quick access to browser games and creative play.
+          Bookmark it and come back for new game drops, updates, and community challenges.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <p>© 2026 Zaapiz's Game Corner • Built with HTML, CSS, and JavaScript</p>
+      <p>
+        <a href="#">Privacy</a> • <a href="#">Terms</a> • <a href="#">Contact</a>
+      </p>
+    </footer>
+
+    <script>
+      function openGame(url) {
+        if (!url) return;
+        window.location.href = url;
+      }
+    </script>
+  </body>
+</html>
+

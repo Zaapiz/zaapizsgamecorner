@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html,  body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+
+    .button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100vw;
+      height: 100vh;
+      background-color: #000000;
+      color: #ffffff !important;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      text-decoration: none !important;
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    .button:hover {
+      background-color: #4a148c !important;
+    }
+  </style>
+</head>
+<body>
+  <a id="button" class="button" >Launch</a>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const button = document.getElementById('button');
+      button.addEventListener('click', launch);
+    });
+
+    function launch() {
+      try {
+        const newWin = window.open("about:blank", "_blank");
+        if (newWin) {
+          newWin.document.open();
+          newWin.document.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;height:100%;background:#000;color:#fff;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;}</style></head><body><p>Loading...</p></body></html>');
+          newWin.document.close();
+          fetch("https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/package.html?t="+Date.now())
+            .then(response => response.text())
+            .then(text => {
+              newWin.document.open();
+              newWin.document.write(text);
+              newWin.document.close();
+            });
+        }
+      } catch (error) {
+        console.error('error:', error);
+      }
+    }
+
+    // Auto-open in about:blank if not already there
+    if (window.location.href !== "about:blank" && !window.aboutBlankLoaded) {
+      const btn = document.getElementById('button');
+      if (btn) btn.textContent = "Click to open in about:blank";
+      document.addEventListener('click', function openBlank() {
+        document.removeEventListener('click', openBlank);
+        const win = window.open("about:blank", "_blank");
+        if (win) {
+          const iframe = win.document.createElement("iframe");
+          iframe.style.cssText = "width:100%;height:100%;border:none;position:fixed;top:0;left:0;margin:0;padding:0;";
+          win.document.body.style.margin = "0";
+          win.document.body.appendChild(iframe);
+          iframe.contentDocument.open();
+          iframe.contentDocument.write(document.documentElement.outerHTML);
+          iframe.contentDocument.close();
+          iframe.contentWindow.aboutBlankLoaded = true;
+          window.close();
+          document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#000;color:#fff;font-family:Arial;">You can close this tab.</div>';
+        }
+      }, { once: true });
+    }
+  </script>
+</body>
+</html>

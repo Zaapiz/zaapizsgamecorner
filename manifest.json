@@ -1,0 +1,15 @@
+{
+  "name": "Ixl | Dashboard",
+  "short_name": "Ixl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fb2651",
+  "theme_color": "#fb2651",
+  "icons": [
+    {
+      "src": "/download.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}
