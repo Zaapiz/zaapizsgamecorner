@@ -7,5 +7,14 @@
         "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/musicplayer.png",
         "url": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/customhtmls/musicplayer.html",
         "special": ["custom"]
+    },
+    {
+        "id": 10002,
+        "name": "Chatroom",
+        "author": "Your Name",
+        "authorLink": "https://www.tiktok.com/@notzaapiz",
+        "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/chatroom-icon.png",
+        "url": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/customhtmls/chatroom.html",
+        "special": ["custom"]
     }
 ]
