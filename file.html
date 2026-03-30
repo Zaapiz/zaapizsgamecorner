@@ -29,13 +29,7 @@
     <meta name="title" content="Zaapiz's Game Corner">
     <meta name="description" content="Zaapiz's Game Corner - play free browser games with covers and assets kept from GN-Math.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://gn-math.github.io/">
-    <meta property="og:title" content="IXL | Dashboard">
-    <meta property="og:description" content="Play unbl*cked games like Crazy Cattle 3D and DriveMad on GN-Math. Fast, free, no downloads—perfect for school or home.">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://gn-math.github.io/">
-    <meta name="twitter:title" content="GN-Math">
-    <meta name="twitter:description" content="Play unbl*cked games like Crazy Cattle 3D and DriveMad on GN-Math. Fast, free, no downloads—perfect for school or home.">
+
     <style>
         :root {
     --primary: #ff7ab8;
@@ -787,15 +781,14 @@ footer {
             <a href="https://www.tiktok.com/@notzaapiz" target="_blank" rel="noopener noreferrer" style="color: white; font-weight: 600; text-decoration: underline; font-size: 1rem;">TikTok: @notzaapiz</a>
             <br>
             <button onclick="showAddGame()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">+ Add Custom Game</button>
-            <button onclick="saveData()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">Export Data</button>
-            <label style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px); display: inline-block;">Import Data<input type="file" accept=".data,.json" onchange="loadData(event)" style="display:none;"></label>
             <button onclick="showSettings()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">⚙ Settings</button>
+            <button onclick="openAboutBlank()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">🔒 about:blank</button>
         </section>
 
         <div id="container">Loading...</div>
     </main>
 
-    <div id="panicScreen" style="display:none;position:fixed;inset:0;background:#000;z-index:99999;cursor:default;"></div>
+    <div id="panicScreen" style="display:none;position:fixed;inset:0;background:#f5f5f5;z-index:99999;cursor:default;overflow:hidden;"></div>
 
      <div id="zoneViewer">
         <div class="zone-header">
@@ -814,7 +807,6 @@ footer {
             <div class="zone-controls">
                 <button onclick="fullscreenZone()">Fullscreen</button>
                 <button onclick="aboutBlank()">Open in New Tab</button>
-                <button onclick="downloadZone()">Download</button>
                 <button onclick="closeZone()">Close</button>
             </div>
         </div>
@@ -1063,6 +1055,7 @@ function displayZones(zones) {
         zoneItem.appendChild(button);
         container.appendChild(zoneItem);   
     });
+
     const customGames = getCustomGames();
     const query = searchBar.value.toLowerCase();
     customGames.filter(g => g.name.toLowerCase().includes(query)).forEach(game => {
@@ -1141,21 +1134,16 @@ function openZone(file) {
         return;
     }
     if (file.url.startsWith("http")) {
-        const newWin = window.open("about:blank", "_blank");
-        if (newWin) {
-            const iframe = newWin.document.createElement("iframe");
-            iframe.style.cssText = "width:100%;height:100%;border:none;position:fixed;top:0;left:0;margin:0;padding:0;";
-            newWin.document.body.style.margin = "0";
-            iframe.src = file.url;
-            newWin.document.body.appendChild(iframe);
-        } else {
-            // Fallback when popup blocked (e.g. inside loader about:blank)
-            if (zoneFrame.contentDocument === null) {
-                zoneFrame = document.createElement("iframe");
-                zoneFrame.id = "zoneFrame";
-                zoneViewer.appendChild(zoneFrame);
+        function loadHttpZone(html) {
+            var newFrame = document.createElement("iframe");
+            newFrame.id = "zoneFrame";
+            if (zoneFrame && zoneFrame.parentNode) {
+                zoneFrame.replaceWith(newFrame);
+            } else {
+                zoneViewer.appendChild(newFrame);
             }
-            zoneFrame.src = file.url;
+            zoneFrame = newFrame;
+            zoneFrame.srcdoc = html;
             document.getElementById('zoneName').textContent = file.name;
             document.getElementById('zoneId').textContent = file.id;
             document.getElementById('zoneAuthor').textContent = "by " + file.author;
@@ -1163,17 +1151,36 @@ function openZone(file) {
             zoneViewer.style.display = "block";
             zoneViewer.hidden = true;
         }
+        fetch(file.url+"?t="+Date.now()).then(response => response.text()).then(loadHttpZone).catch(function() {
+            // Fetch failed (e.g. about:blank origin), fall back to loading URL in iframe directly
+            var newFrame = document.createElement("iframe");
+            newFrame.id = "zoneFrame";
+            if (zoneFrame && zoneFrame.parentNode) {
+                zoneFrame.replaceWith(newFrame);
+            } else {
+                zoneViewer.appendChild(newFrame);
+            }
+            zoneFrame = newFrame;
+            zoneFrame.src = file.url;
+            document.getElementById('zoneName').textContent = file.name;
+            document.getElementById('zoneId').textContent = file.id;
+            document.getElementById('zoneAuthor').textContent = "by " + file.author;
+            if (file.authorLink) document.getElementById('zoneAuthor').href = file.authorLink;
+            zoneViewer.style.display = "block";
+            zoneViewer.hidden = true;
+        });
     } else {
         const url = file.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
         fetch(url+"?t="+Date.now()).then(response => response.text()).then(html => {
-            if (zoneFrame.contentDocument === null) {
-                zoneFrame = document.createElement("iframe");
-                zoneFrame.id = "zoneFrame";
-                zoneViewer.appendChild(zoneFrame);
+            var newFrame = document.createElement("iframe");
+            newFrame.id = "zoneFrame";
+            if (zoneFrame && zoneFrame.parentNode) {
+                zoneFrame.replaceWith(newFrame);
+            } else {
+                zoneViewer.appendChild(newFrame);
             }
-            zoneFrame.contentDocument.open();
-            zoneFrame.contentDocument.write(html);
-            zoneFrame.contentDocument.close();
+            zoneFrame = newFrame;
+            zoneFrame.srcdoc = html;
             document.getElementById('zoneName').textContent = file.name;
             document.getElementById('zoneId').textContent = file.id;
             document.getElementById('zoneAuthor').textContent = "by " + file.author;
@@ -1188,14 +1195,26 @@ function openZone(file) {
 
 function aboutBlank() {
     const newWindow = window.open("about:blank", "_blank");
-    let zone = zones.find(zone => zone.id + '' === document.getElementById('zoneId').textContent).url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
-    fetch(zone+"?t="+Date.now()).then(response => response.text()).then(html => {
-        if (newWindow) {
+    if (!newWindow) { alert('Popup blocked! Please allow popups for this site.'); return; }
+    const zoneIdText = document.getElementById('zoneId').textContent;
+    // User-added custom game — grab HTML directly from the iframe
+    if (zoneIdText === 'custom') {
+        try {
+            const html = zoneFrame.srcdoc || zoneFrame.contentDocument.documentElement.outerHTML;
             newWindow.document.open();
             newWindow.document.write(html);
             newWindow.document.close();
-        }
-    })
+        } catch(e) { alert('Could not open this custom game in a new tab.'); }
+        return;
+    }
+    const zone = zones.find(z => z.id + '' === zoneIdText);
+    if (!zone) { alert('Zone not found.'); return; }
+    const url = zone.url.startsWith("http") ? zone.url : zone.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
+    fetch(url+"?t="+Date.now()).then(response => response.text()).then(html => {
+        newWindow.document.open();
+        newWindow.document.write(html);
+        newWindow.document.close();
+    }).catch(error => alert("Failed to load zone: " + error));
 }
 
 function closeZone() {
@@ -1458,7 +1477,7 @@ function cloakIcon(url) {
 }
 function cloakName(string) {
     if ((string+"").trim().length === 0) {
-        document.title = "gn-math";
+        document.title = "Zaapiz's Game Corner";
         return;
     }
     document.title = string;
@@ -1722,6 +1741,134 @@ function removeCloak() {
 // === PANIC KEY ===
 let panicKey = store.get('panicKey') || '`';
 let panicActive = false;
+let prePanicTitle = '';
+let prePanicIcon = '';
+
+const panicScreens = {
+    ixl: {
+        tabTitle: 'IXL | Error',
+        tabIcon: 'https://www.ixl.com/favicon.ico',
+        bg: '#f5f5f5',
+        barBg: '#fff',
+        barIcon: 'https://www.ixl.com/favicon.ico',
+        barText: 'IXL | Learning',
+        btnColor: '#1b6dea',
+        supportText: 'If the problem persists, please contact IXL support'
+    },
+    desmos: {
+        tabTitle: 'Desmos | Error',
+        tabIcon: 'https://www.desmos.com/assets/img/apps/graphing/favicon.ico',
+        bg: '#f7f7f7',
+        barBg: '#3b763d',
+        barIcon: 'https://www.desmos.com/assets/img/apps/graphing/favicon.ico',
+        barText: 'Desmos | Graphing Calculator',
+        barTextColor: '#fff',
+        btnColor: '#3b763d',
+        supportText: 'If the problem persists, please try reloading desmos.com'
+    },
+    google: {
+        tabTitle: 'Google - Error',
+        tabIcon: 'https://www.google.com/favicon.ico',
+        bg: '#fff',
+        barBg: '#fff',
+        barIcon: 'https://www.google.com/favicon.ico',
+        barText: 'Google',
+        btnColor: '#1a73e8',
+        supportText: 'Check your connection and try again'
+    },
+    drive: {
+        tabTitle: 'Google Drive - Error',
+        tabIcon: 'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png',
+        bg: '#f8f9fa',
+        barBg: '#fff',
+        barIcon: 'https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png',
+        barText: 'Google Drive',
+        btnColor: '#1a73e8',
+        supportText: 'If this continues, visit the Google Workspace Status Dashboard'
+    },
+    classroom: {
+        tabTitle: 'Google Classroom - Error',
+        tabIcon: 'https://ssl.gstatic.com/classroom/favicon.png',
+        bg: '#f8f9fa',
+        barBg: '#1967d2',
+        barIcon: 'https://ssl.gstatic.com/classroom/favicon.png',
+        barText: 'Google Classroom',
+        barTextColor: '#fff',
+        btnColor: '#1967d2',
+        supportText: 'If the problem persists, check your internet connection or try again later'
+    },
+    khan: {
+        tabTitle: 'Khan Academy - Error',
+        tabIcon: 'https://cdn.kastatic.org/images/favicon.ico',
+        bg: '#f7f8fa',
+        barBg: '#fff',
+        barIcon: 'https://cdn.kastatic.org/images/favicon.ico',
+        barText: 'Khan Academy',
+        btnColor: '#1865f2',
+        supportText: 'If this keeps happening, visit khanacademy.org/support'
+    },
+    canvas: {
+        tabTitle: 'Canvas - Error',
+        tabIcon: 'https://du11hjcvx0uqb.cloudfront.net/dist/images/favicon-e10d657a73.ico',
+        bg: '#f5f5f5',
+        barBg: '#394B58',
+        barIcon: 'https://du11hjcvx0uqb.cloudfront.net/dist/images/favicon-e10d657a73.ico',
+        barText: 'Canvas LMS',
+        barTextColor: '#fff',
+        btnColor: '#394B58',
+        supportText: 'If the problem persists, contact your school administrator'
+    },
+    wikipedia: {
+        tabTitle: 'Wikipedia - Error',
+        tabIcon: 'https://en.wikipedia.org/static/favicon/wikipedia.ico',
+        bg: '#f6f6f6',
+        barBg: '#fff',
+        barIcon: 'https://en.wikipedia.org/static/favicon/wikipedia.ico',
+        barText: 'Wikipedia',
+        btnColor: '#36c',
+        supportText: 'There may be a technical problem with the server. Please try again in a few minutes.'
+    }
+};
+
+function buildPanicHTML(cfg) {
+    var barTextColor = cfg.barTextColor || '#333';
+    return '<div style="background:' + cfg.barBg + ';border-bottom:1px solid #e0e0e0;padding:12px 24px;display:flex;align-items:center;gap:12px;">'
+        + '<img src="' + cfg.barIcon + '" style="width:20px;height:20px;" alt="">'
+        + '<span style="font-family:-apple-system,\'Segoe UI\',Roboto,Arial,sans-serif;font-size:14px;color:' + barTextColor + ';font-weight:600;">' + cfg.barText + '</span>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:calc(100% - 50px);font-family:-apple-system,\'Segoe UI\',Roboto,Arial,sans-serif;color:#333;padding:2rem;text-align:center;">'
+        + '<div style="background:#fff;border-radius:12px;padding:48px 40px;max-width:520px;width:100%;box-shadow:0 2px 12px rgba(0,0,0,0.08);">'
+        + '<div style="width:80px;height:80px;background:#fce4e4;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;">'
+        + '<span style="font-size:36px;color:#d32f2f;">!</span></div>'
+        + '<h1 style="font-size:22px;font-weight:700;margin:0 0 12px;color:#222;">Something went wrong</h1>'
+        + '<p style="font-size:15px;color:#666;margin:0 0 8px;line-height:1.6;">We\'re having trouble loading this page. This could be due to a network issue or a temporary server problem.</p>'
+        + '<p style="font-size:13px;color:#999;margin:0 0 24px;">Error 503 \u2014 Service Temporarily Unavailable</p>'
+        + '<button onclick="return false;" style="background:' + cfg.btnColor + ';color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;cursor:pointer;font-family:inherit;font-weight:600;">Try again</button>'
+        + '<p style="font-size:12px;color:#aaa;margin:16px 0 0;">' + cfg.supportText + '</p>'
+        + '</div></div>';
+}
+
+function panicOn() {
+    prePanicTitle = document.title;
+    var link = document.querySelector("link[rel*='icon']");
+    prePanicIcon = link ? link.href : '';
+    var activeCloak = store.get('activeCloak') || 'ixl';
+    var cfg = panicScreens[activeCloak] || panicScreens.ixl;
+    var screen = document.getElementById('panicScreen');
+    screen.style.background = cfg.bg;
+    screen.innerHTML = buildPanicHTML(cfg);
+    document.title = cfg.tabTitle;
+    cloakIcon(cfg.tabIcon);
+    screen.style.display = 'block';
+    panicActive = true;
+}
+
+function panicOff() {
+    document.title = prePanicTitle || "Zaapiz's Game Corner";
+    if (prePanicIcon) cloakIcon(prePanicIcon); else cloakIcon('');
+    document.getElementById('panicScreen').style.display = 'none';
+    panicActive = false;
+}
 
 function setPanicKey() {
     const input = document.getElementById('panicKeyInput').value.trim();
@@ -1736,18 +1883,29 @@ function setPanicKey() {
 
 document.addEventListener('keydown', function(e) {
     if (e.key === panicKey && !e.target.matches('input, textarea, select')) {
-        panicActive = !panicActive;
-        document.getElementById('panicScreen').style.display = panicActive ? 'block' : 'none';
+        panicActive ? panicOff() : panicOn();
     }
 });
 
 document.getElementById('panicScreen').addEventListener('keydown', function(e) {
     if (e.key === panicKey) {
-        panicActive = false;
-        document.getElementById('panicScreen').style.display = 'none';
+        panicOff();
     }
 });
 document.getElementById('panicScreen').setAttribute('tabindex', '0');
+
+// === ABOUT:BLANK ===
+function openAboutBlank() {
+    var win = window.open('about:blank', '_blank');
+    if (win) {
+        var html = document.documentElement.outerHTML;
+        win.document.open();
+        win.document.write('<!DOCTYPE html>' + html);
+        win.document.close();
+    } else {
+        alert('Popup blocked! Please allow popups for this site and try again.');
+    }
+}
 
 // === SETTINGS ===
 function showSettings() {
@@ -1902,27 +2060,20 @@ function buildCustomGameHTML(game) {
 
 function openCustomGame(game) {
     const html = buildCustomGameHTML(game);
-    const newWin = window.open('about:blank', '_blank');
-    if (newWin) {
-        newWin.document.open();
-        newWin.document.write(html);
-        newWin.document.close();
+    var newFrame = document.createElement("iframe");
+    newFrame.id = "zoneFrame";
+    if (zoneFrame && zoneFrame.parentNode) {
+        zoneFrame.replaceWith(newFrame);
     } else {
-        // Fallback when popup blocked (e.g. inside loader about:blank)
-        if (zoneFrame.contentDocument === null) {
-            zoneFrame = document.createElement("iframe");
-            zoneFrame.id = "zoneFrame";
-            zoneViewer.appendChild(zoneFrame);
-        }
-        zoneFrame.contentDocument.open();
-        zoneFrame.contentDocument.write(html);
-        zoneFrame.contentDocument.close();
-        document.getElementById('zoneName').textContent = game.name;
-        document.getElementById('zoneId').textContent = 'custom';
-        document.getElementById('zoneAuthor').textContent = 'Custom Game';
-        zoneViewer.style.display = "block";
-        zoneViewer.hidden = true;
+        zoneViewer.appendChild(newFrame);
     }
+    zoneFrame = newFrame;
+    zoneFrame.srcdoc = html;
+    document.getElementById('zoneName').textContent = game.name;
+    document.getElementById('zoneId').textContent = 'custom';
+    document.getElementById('zoneAuthor').textContent = 'Custom Game';
+    zoneViewer.style.display = "block";
+    zoneViewer.hidden = true;
 }
 
 listZones();
