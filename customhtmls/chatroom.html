@@ -337,6 +337,8 @@
 
     <div class="chat-input" id="chatInputBar">
         <input type="text" id="msgInput" placeholder="Type a message..." maxlength="500" autocomplete="off" disabled>
+        <input type="file" id="imgInput" accept="image/*" style="display:none">
+        <button id="imgBtn" title="Send image" disabled>🖼️</button>
         <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
     </div>
     <div class="banned-overlay" id="bannedOverlay" style="display:none;">
@@ -464,8 +466,24 @@
             if (e.key === 'Enter') joinChat();
         });
 
+
         document.getElementById('msgInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) sendMessage();
+        });
+        document.getElementById('imgBtn').addEventListener('click', function() {
+            document.getElementById('imgInput').click();
+        });
+        document.getElementById('imgInput').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) return alert('Only images allowed!');
+            if (file.size > 1024*1024) return alert('Image too large (max 1MB)');
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                sendImage(ev.target.result);
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
         });
 
         async function joinChat() {
@@ -502,6 +520,7 @@
         function enableChat() {
             document.getElementById('msgInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
+            document.getElementById('imgBtn').disabled = false;
             document.getElementById('msgInput').focus();
             if (isAdmin) document.getElementById('adminPanelBtn').style.display = 'inline-block';
             listenForMessages();
@@ -524,6 +543,19 @@
             });
             input.value = '';
             input.focus();
+        }
+
+        function sendImage(dataUrl) {
+            if (bannedUsers[username.toLowerCase()]) return;
+            var myMute = mutedUsers[username.toLowerCase()];
+            if (myMute && (typeof myMute !== 'number' || myMute > Date.now())) return;
+            chatRef.push({
+                type: 'msg',
+                user: username,
+                image: dataUrl,
+                admin: isAdmin || false,
+                ts: firebase.database.ServerValue.TIMESTAMP
+            });
         }
 
         function banUser(name) {
@@ -647,7 +679,26 @@
 
             var bubble = document.createElement('div');
             bubble.className = 'msg-bubble';
-            bubble.textContent = data.text;
+            if (data.image) {
+                var img = document.createElement('img');
+                img.src = data.image;
+                img.alt = '[image]';
+                img.style.maxWidth = '180px';
+                img.style.maxHeight = '180px';
+                img.style.display = 'block';
+                img.style.borderRadius = '8px';
+                img.style.margin = '2px 0';
+                bubble.appendChild(img);
+                if (data.text) {
+                    var cap = document.createElement('div');
+                    cap.textContent = data.text;
+                    cap.style.fontSize = '0.85em';
+                    cap.style.marginTop = '2px';
+                    bubble.appendChild(cap);
+                }
+            } else {
+                bubble.textContent = data.text;
+            }
             msgDiv.appendChild(bubble);
 
             // Admin mod actions
