@@ -327,9 +327,11 @@
                 <div class="goal-bar"><div class="goal-fill" id="goalFill" style="width:0%"></div></div>
                 <span class="goal-text" id="goalText">$0/$0</span>
             </div>
+            <button class="admin-panel-btn" id="changeUserBtn" onclick="openChangeUserModal()">Change Username</button>
             <button class="admin-panel-btn" id="adminPanelBtn" style="display:none" onclick="openAdminPanel()">Admin</button>
             <span class="online-dot"></span>
             <span id="headerUser"></span>
+            <span id="onlineUsers" style="margin-left:8px; color:#10b981; font-size:0.85em;"></span>
         </div>
     </div>
 
@@ -337,8 +339,7 @@
 
     <div class="chat-input" id="chatInputBar">
         <input type="text" id="msgInput" placeholder="Type a message..." maxlength="500" autocomplete="off" disabled>
-        <input type="file" id="imgInput" accept="image/*" style="display:none">
-        <button id="imgBtn" title="Send image" disabled>🖼️</button>
+        <!-- Image input and button removed -->
         <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
     </div>
     <div class="banned-overlay" id="bannedOverlay" style="display:none;">
@@ -381,6 +382,7 @@
         var bannedRef = db.ref('chatroom/banned');
         var mutedRef = db.ref('chatroom/muted');
         var goalRef = db.ref('chatroom/goal');
+        var typingRef = db.ref('chatroom/typing');
 
         var donationGoal = { current: 0, target: 0, month: '' };
 
@@ -467,24 +469,31 @@
         });
 
 
+        function setTyping(isTyping) {
+            if (!username) return;
+            if (isTyping) {
+                typingRef.child(username).set(firebase.database.ServerValue.TIMESTAMP);
+                lastTyped = Date.now();
+                if (typingTimeout) clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(function() {
+                    if (Date.now() - lastTyped >= 2500) typingRef.child(username).remove();
+                }, 3000);
+            } else {
+                typingRef.child(username).remove();
+            }
+        }
+
         document.getElementById('msgInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) sendMessage();
+            setTyping(true);
         });
-        document.getElementById('imgBtn').addEventListener('click', function() {
-            document.getElementById('imgInput').click();
+        document.getElementById('msgInput').addEventListener('input', function() {
+            setTyping(true);
         });
-        document.getElementById('imgInput').addEventListener('change', function(e) {
-            var file = e.target.files[0];
-            if (!file) return;
-            if (!file.type.startsWith('image/')) return alert('Only images allowed!');
-            if (file.size > 1024*1024) return alert('Image too large (max 1MB)');
-            var reader = new FileReader();
-            reader.onload = function(ev) {
-                sendImage(ev.target.result);
-            };
-            reader.readAsDataURL(file);
-            e.target.value = '';
+        document.getElementById('msgInput').addEventListener('blur', function() {
+            setTyping(false);
         });
+        // Image input and button event listeners removed
 
         async function joinChat() {
             var name = document.getElementById('usernameInput').value.trim();
@@ -520,10 +529,25 @@
         function enableChat() {
             document.getElementById('msgInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
-            document.getElementById('imgBtn').disabled = false;
             document.getElementById('msgInput').focus();
             if (isAdmin) document.getElementById('adminPanelBtn').style.display = 'inline-block';
             listenForMessages();
+            listenForTyping();
+            listenForOnlineUsers();
+        }
+
+        function listenForOnlineUsers() {
+            typingRef.on('value', function(snap) {
+                var users = snap.val() || {};
+                var now = Date.now();
+                var online = [];
+                Object.keys(users).forEach(function(u) {
+                    // Show users active in the last 10 seconds
+                    if (users[u] > now - 10000) online.push(u);
+                });
+                document.getElementById('onlineUsers').textContent =
+                    online.length ? 'Online: ' + online.join(', ') : 'No users online';
+            });
         }
 
         function sendMessage() {
@@ -543,6 +567,7 @@
             });
             input.value = '';
             input.focus();
+            setTyping(false);
         }
 
         function sendImage(dataUrl) {
@@ -870,6 +895,15 @@
 
             overlay.appendChild(panel);
             document.body.appendChild(overlay);
+        }
+        // Change Username button logic
+        function openChangeUserModal() {
+            document.getElementById('usernameModal').style.display = 'flex';
+            document.getElementById('usernameInput').value = '';
+            document.getElementById('adminInput').value = '';
+            document.getElementById('adminField').style.display = 'none';
+            document.querySelector('.admin-toggle').style.display = 'block';
+            document.getElementById('usernameInput').focus();
         }
     </script>
 </body>
