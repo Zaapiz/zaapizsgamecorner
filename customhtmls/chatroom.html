@@ -189,6 +189,20 @@
             padding: 0.5rem 0;
         }
 
+        .read-receipt { font-size: 0.7rem; color: #64748b; margin-top:4px; }
+
+        /* Typing indicator styling */
+        #typingIndicator { padding: 0 1.5rem 0.5rem; display:flex; align-items:center; gap:8px; min-height:18px; }
+        .typing-bubble { width:10px; height:10px; border-radius:50%; background:#fff; opacity:0; transform:scale(0.8); transition:opacity 0.2s, transform 0.2s; }
+        .typing-bubble.show { opacity:1; transform:scale(1); animation: typingBlink 1s ease-in-out infinite; }
+
+        @keyframes typingBlink {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.15; transform: scale(0.85); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .typing-text { color:#ffffff; font-weight:700; font-size:0.9rem; }
+
         /* Input */
         .chat-input {
             background: rgba(30, 41, 59, 0.9);
@@ -305,6 +319,8 @@
 </head>
 <body>
 
+    <div id="debugBanner" style="position:fixed;left:12px;top:12px;padding:6px 10px;background:#fff;color:#111;border-radius:8px;z-index:9999;font-weight:700;font-family:inherit;display:none;">Debug: waiting...</div>
+
     <!-- Username modal -->
     <div class="modal-overlay" id="usernameModal">
         <div class="modal">
@@ -318,6 +334,7 @@
             <button id="joinBtn" onclick="joinChat()">Join Chat</button>
         </div>
     </div>
+    
 
     <div class="chat-header">
         <h1>💬 Zaapiz's Live Chat</h1>
@@ -329,13 +346,17 @@
             </div>
             <button class="admin-panel-btn" id="changeUserBtn" onclick="openChangeUserModal()">Change Username</button>
             <button class="admin-panel-btn" id="adminPanelBtn" style="display:none" onclick="openAdminPanel()">Admin</button>
-            <span class="online-dot"></span>
             <span id="headerUser"></span>
-            <span id="onlineUsers" style="margin-left:8px; color:#10b981; font-size:0.85em;"></span>
+            <span id="currentChannel" style="margin-left:12px; color:#94a3b8; font-size:0.9em;"></span>
+            
         </div>
     </div>
 
     <div class="messages" id="messages"></div>
+    <div id="typingIndicator" style="padding:0 1.5rem 0.5rem;min-height:18px;">
+        <span class="typing-bubble" aria-hidden="true"></span>
+        <span class="typing-text"></span>
+    </div>
 
     <div class="chat-input" id="chatInputBar">
         <input type="text" id="msgInput" placeholder="Type a message..." maxlength="500" autocomplete="off" disabled>
@@ -377,14 +398,33 @@
         }
 
         firebase.initializeApp(firebaseConfig);
+        try { if (debugEnabled) document.getElementById('debugBanner').textContent = '[DEBUG] script initialized'; } catch(e) {}
+        // Global debug hooks to capture errors in the browser console
+        window.addEventListener('error', function(e) {
+            console.error('[GLOBAL ERROR]', e.message, e.filename + ':' + e.lineno, e.error);
+            try { if (debugEnabled) document.getElementById('debugBanner').textContent = '[GLOBAL ERROR] ' + e.message; } catch(err) {}
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('[UNHANDLED REJECTION]', e.reason);
+            try { if (debugEnabled) document.getElementById('debugBanner').textContent = '[UNHANDLED REJECTION] ' + (e.reason && e.reason.message ? e.reason.message : e.reason); } catch(err) {}
+        });
         var db = firebase.database();
         var chatRef = db.ref('chatroom/messages');
+        
+        var readsRef = db.ref('chatroom/reads');
         var bannedRef = db.ref('chatroom/banned');
         var mutedRef = db.ref('chatroom/muted');
         var goalRef = db.ref('chatroom/goal');
         var typingRef = db.ref('chatroom/typing');
 
+        // Current messaging target: { type: 'public'|'dm'|'group', id: string|null, label: string }
+        var currentChannel = { type: 'public', id: null, label: 'Public' };
+        var currentMessageRef = chatRef;
+        var debugEnabled = false;
+
         var donationGoal = { current: 0, target: 0, month: '' };
+
+        // no presence/online users UI
 
         // Listen for goal updates & auto-reset monthly
         goalRef.on('value', function(snap) {
@@ -426,6 +466,8 @@
         var renderedKeys = new Set();
         var lastSender = '';
         var lastTimestamp = 0;
+        var typingTimeout = null;
+        var lastTyped = 0;
 
         // Listen for ban/mute lists
         bannedRef.on('value', function(snap) {
@@ -470,6 +512,7 @@
 
 
         function setTyping(isTyping) {
+            console.log('[DEBUG] setTyping()', isTyping);
             if (!username) return;
             if (isTyping) {
                 typingRef.child(username).set(firebase.database.ServerValue.TIMESTAMP);
@@ -484,7 +527,11 @@
         }
 
         document.getElementById('msgInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                var sendBtn = document.getElementById('sendBtn');
+                if (sendBtn) sendBtn.click();
+            }
             setTyping(true);
         });
         document.getElementById('msgInput').addEventListener('input', function() {
@@ -496,6 +543,7 @@
         // Image input and button event listeners removed
 
         async function joinChat() {
+            console.log('[DEBUG] joinChat() called');
             var name = document.getElementById('usernameInput').value.trim();
             if (!name) return;
             name = name.replace(/[<>&"']/g, '');
@@ -527,27 +575,32 @@
         }
 
         function enableChat() {
+            console.log('[DEBUG] enableChat() — username:', username, 'isAdmin:', isAdmin);
             document.getElementById('msgInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
             document.getElementById('msgInput').focus();
             if (isAdmin) document.getElementById('adminPanelBtn').style.display = 'inline-block';
-            listenForMessages();
+            // Default to public channel on join
+            switchChannel('public', null, 'Public');
             listenForTyping();
-            listenForOnlineUsers();
         }
 
         function listenForOnlineUsers() {
-            typingRef.on('value', function(snap) {
-                var users = snap.val() || {};
-                var now = Date.now();
-                var online = [];
-                Object.keys(users).forEach(function(u) {
-                    // Show users active in the last 10 seconds
-                    if (users[u] > now - 10000) online.push(u);
-                });
-                document.getElementById('onlineUsers').textContent =
-                    online.length ? 'Online: ' + online.join(', ') : 'No users online';
+            // presence/online feature removed
+        }
+
+        // Ensure there's a listener placeholder for typing (prevents runtime errors)
+        function listenForTyping() {
+            // Clean up typing entry on unload
+            window.addEventListener('beforeunload', function() {
+                if (username) {
+                    typingRef.child(username).remove();
+                }
             });
+        }
+
+        function startPresenceHeartbeat() {
+            // presence feature removed
         }
 
         function sendMessage() {
@@ -558,13 +611,16 @@
             var text = input.value.trim();
             if (!text) return;
             text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            chatRef.push({
+            // Push to the current channel's message ref
+            var payload = {
                 type: 'msg',
                 user: username,
                 text: text,
                 admin: isAdmin || false,
                 ts: firebase.database.ServerValue.TIMESTAMP
-            });
+            };
+            if (!currentMessageRef) currentMessageRef = chatRef;
+            currentMessageRef.push(payload);
             input.value = '';
             input.focus();
             setTyping(false);
@@ -640,18 +696,39 @@
         }
 
         function listenForMessages() {
-            // Load last 200 messages and listen for new ones
-            chatRef.orderByChild('ts').limitToLast(MAX_MESSAGES).on('child_added', function(snap) {
+            console.warn('listenForMessages() deprecated; use switchChannel()/attachMessageListener()');
+        }
+
+        function attachMessageListener(ref) {
+            if (!ref) ref = chatRef;
+            // detach previous
+            if (currentMessageRef && currentMessageRef.off) currentMessageRef.off();
+            currentMessageRef = ref;
+            // clear rendered list and UI
+            document.getElementById('messages').innerHTML = '';
+            renderedKeys.clear();
+            // attach
+            ref.orderByChild('ts').limitToLast(MAX_MESSAGES).on('child_added', function(snap) {
                 var data = snap.val();
                 if (!data) return;
                 var key = snap.key;
                 if (renderedKeys.has(key)) return;
                 renderedKeys.add(key);
-                renderMessage(data);
+                renderMessage(data, key);
             });
         }
 
-        function renderMessage(data) {
+        function switchChannel(type, id, label) {
+            currentChannel.type = 'public';
+            currentChannel.id = null;
+            currentChannel.label = 'Public';
+            document.getElementById('currentChannel').textContent = '[' + currentChannel.label + ']';
+            // Only public channel is supported now — attach public message listener
+            attachMessageListener(chatRef);
+        }
+
+        function renderMessage(data, key) {
+            console.log('[DEBUG] renderMessage()', key, data);
             if (!data || !data.ts) return;
             var container = document.getElementById('messages');
 
@@ -725,6 +802,29 @@
                 bubble.textContent = data.text;
             }
             msgDiv.appendChild(bubble);
+
+            // Read receipts UI
+            var readWrap = document.createElement('div');
+            readWrap.className = 'read-receipt';
+            msgDiv.appendChild(readWrap);
+
+            // Mark message as read by this user
+            if (username && key) {
+                readsRef.child(key).child(username).set(firebase.database.ServerValue.TIMESTAMP);
+            }
+
+            // Listen for read receipts changes
+            if (key) {
+                readsRef.child(key).on('value', function(snap) {
+                    var val = snap.val() || {};
+                    var names = Object.keys(val || {});
+                    // exclude the author themselves for display if desired
+                    var seenBy = names.filter(function(n){ return n !== data.user; });
+                    if (seenBy.length === 0) readWrap.textContent = '';
+                    else if (seenBy.length === 1) readWrap.textContent = 'Seen by ' + seenBy[0];
+                    else readWrap.textContent = 'Seen by ' + seenBy.length + ' users';
+                });
+            }
 
             // Admin mod actions
             if (isAdmin && !isSelf) {
@@ -876,6 +976,47 @@
             goalRow.appendChild(saveGoalBtn);
             panel.appendChild(goalRow);
 
+            // Debug section
+            var dh = document.createElement('h4');
+            dh.textContent = '🐞 Debug';
+            panel.appendChild(dh);
+
+            var toggleDbgBtn = document.createElement('button');
+            toggleDbgBtn.textContent = debugEnabled ? 'Disable Debug' : 'Enable Debug';
+            toggleDbgBtn.style.cssText = 'padding:0.4rem 0.8rem;border:none;border-radius:8px;background:#475569;color:white;font-size:0.8rem;cursor:pointer;margin-bottom:6px;';
+            toggleDbgBtn.onclick = function() {
+                var b = document.getElementById('debugBanner');
+                if (!b) return alert('Debug banner not found');
+                debugEnabled = !debugEnabled;
+                b.style.display = debugEnabled ? 'block' : 'none';
+                toggleDbgBtn.textContent = debugEnabled ? 'Disable Debug' : 'Enable Debug';
+                if (debugEnabled) {
+                    try { document.getElementById('debugBanner').textContent = '[DEBUG] enabled'; } catch(e) {}
+                } else {
+                    try { document.getElementById('debugBanner').textContent = ''; } catch(e) {}
+                }
+                updateDbgInfo();
+            };
+            panel.appendChild(toggleDbgBtn);
+
+            var dbgRefresh = document.createElement('button');
+            dbgRefresh.textContent = 'Refresh Debug Info';
+            dbgRefresh.style.cssText = 'padding:0.4rem 0.8rem;border:none;border-radius:8px;background:#334155;color:white;font-size:0.8rem;cursor:pointer;margin-left:8px;';
+            panel.appendChild(dbgRefresh);
+
+            var dbgInfo = document.createElement('pre');
+            dbgInfo.style.cssText = 'background:#0f172a;color:#e2e8f0;padding:8px;border-radius:8px;margin-top:8px;max-height:120px;overflow:auto;font-size:0.75rem;';
+            function updateDbgInfo() {
+                try {
+                    var b = document.getElementById('debugBanner');
+                    var banner = b ? b.textContent : '(none)';
+                    dbgInfo.textContent = 'Debug Enabled: ' + (debugEnabled ? 'yes' : 'no') + '\nUser: ' + (username || '(none)') + '\nUA: ' + navigator.userAgent + '\nBanner: ' + banner;
+                } catch (e) { dbgInfo.textContent = 'Error reading debug info'; }
+            }
+            dbgRefresh.onclick = updateDbgInfo;
+            updateDbgInfo();
+            panel.appendChild(dbgInfo);
+
             var clearBtn = document.createElement('button');
             clearBtn.className = 'admin-danger';
             clearBtn.textContent = '🗑️ Clear All Chat';
@@ -905,6 +1046,8 @@
             document.querySelector('.admin-toggle').style.display = 'block';
             document.getElementById('usernameInput').focus();
         }
+
+        
     </script>
 </body>
 </html>
