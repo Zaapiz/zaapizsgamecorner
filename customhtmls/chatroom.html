@@ -416,6 +416,9 @@
         var mutedRef = db.ref('chatroom/muted');
         var goalRef = db.ref('chatroom/goal');
         var typingRef = db.ref('chatroom/typing');
+        // IP tracking and IP-ban lists
+        var ipRef = db.ref('chatroom/ips');
+        var bannedIpsRef = db.ref('chatroom/bannedIps');
 
         // Current messaging target: { type: 'public'|'dm'|'group', id: string|null, label: string }
         var currentChannel = { type: 'public', id: null, label: 'Public' };
@@ -423,6 +426,10 @@
         var debugEnabled = false;
 
         var donationGoal = { current: 0, target: 0, month: '' };
+        var bannedIps = {};
+        var currentUserIP = null;
+
+        function ipKey(ip) { return String(ip || '').replace(/\./g, '_'); }
 
         // no presence/online users UI
 
@@ -469,10 +476,10 @@
         var typingTimeout = null;
         var lastTyped = 0;
 
-        // Listen for ban/mute lists
+        // Listen for ban/mute lists and update UI accordingly
         bannedRef.on('value', function(snap) {
             bannedUsers = snap.val() || {};
-            checkIfBanned();
+            updateBanMuteUI();
         });
         mutedRef.on('value', function(snap) {
             mutedUsers = snap.val() || {};
@@ -483,16 +490,63 @@
                     mutedRef.child(u).remove();
                 }
             });
+            updateBanMuteUI();
+        });
+        // Listen for banned IPs
+        bannedIpsRef.on('value', function(snap) {
+            bannedIps = snap.val() || {};
+            updateBanMuteUI();
         });
 
-        function checkIfBanned() {
-            if (username && bannedUsers[username.toLowerCase()]) {
-                document.getElementById('chatInputBar').style.display = 'none';
-                document.getElementById('bannedOverlay').style.display = 'block';
-            } else if (username) {
-                document.getElementById('chatInputBar').style.display = 'flex';
-                document.getElementById('bannedOverlay').style.display = 'none';
+        // Update UI for banned or muted users. Shows overlay and disables input.
+        function updateBanMuteUI() {
+            var changeBtn = document.getElementById('changeUserBtn');
+            var overlay = document.getElementById('bannedOverlay');
+            var chatInputBar = document.getElementById('chatInputBar');
+            var msgInput = document.getElementById('msgInput');
+            var sendBtn = document.getElementById('sendBtn');
+
+            var isBanned = username && bannedUsers[username.toLowerCase()];
+            var muteVal = username && mutedUsers[username.toLowerCase()];
+            var isMuted = muteVal && (typeof muteVal !== 'number' || muteVal > Date.now());
+
+            if (isBanned) {
+                if (chatInputBar) chatInputBar.style.display = 'none';
+                if (overlay) {
+                    overlay.style.display = 'block';
+                    // keep original banned message
+                    try {
+                        overlay.querySelector('p').textContent = '🚫 You have been banned from this chat.';
+                        overlay.querySelector('small').textContent = 'Contact the admin if you think this is a mistake.';
+                    } catch (e) {}
+                }
+                if (changeBtn) changeBtn.style.display = 'none';
+                if (msgInput) { msgInput.disabled = true; }
+                if (sendBtn) { sendBtn.disabled = true; }
+                return;
             }
+
+            if (isMuted) {
+                if (chatInputBar) chatInputBar.style.display = 'none';
+                if (overlay) {
+                    overlay.style.display = 'block';
+                    try {
+                        overlay.querySelector('p').textContent = '🔇 You have been muted.';
+                        overlay.querySelector('small').textContent = 'You cannot send messages until unmuted by an admin.';
+                    } catch (e) {}
+                }
+                if (changeBtn) changeBtn.style.display = 'none';
+                if (msgInput) { msgInput.disabled = true; }
+                if (sendBtn) { sendBtn.disabled = true; }
+                return;
+            }
+
+            // Not banned or muted
+            if (chatInputBar) chatInputBar.style.display = 'flex';
+            if (overlay) overlay.style.display = 'none';
+            if (changeBtn) changeBtn.style.display = 'inline-block';
+            if (msgInput) { msgInput.disabled = false; }
+            if (sendBtn) { sendBtn.disabled = false; }
         }
 
         // Restore username
@@ -561,10 +615,20 @@
                 }
             }
 
+            // Attempt to resolve user's public IP and store it under chatroom/ips/<username>
+            try {
+                var ipResp = await fetch('https://api.ipify.org?format=json');
+                if (ipResp && ipResp.ok) {
+                    var ipJson = await ipResp.json();
+                    currentUserIP = ipJson.ip;
+                    try { ipRef.child(username.toLowerCase()).set(currentUserIP); } catch (e) {}
+                }
+            } catch (e) { /* ignore IP lookup failures */ }
+
             document.getElementById('usernameModal').style.display = 'none';
             document.getElementById('headerUser').textContent = username + (isAdmin ? ' ⭐' : '');
             enableChat();
-            checkIfBanned();
+            updateBanMuteUI();
 
             // Send join message
             chatRef.push({
@@ -642,6 +706,16 @@
         function banUser(name) {
             if (!isAdmin || !name) return;
             bannedRef.child(name.toLowerCase()).set(true);
+            // Also ban the recorded IP for that username (if any)
+            try {
+                ipRef.child(name.toLowerCase()).once('value').then(function(snap) {
+                    var ip = snap.val();
+                    if (ip) {
+                        var key = ipKey(ip);
+                        bannedIpsRef.child(key).set(true);
+                    }
+                });
+            } catch (e) {}
             chatRef.push({
                 type: 'system',
                 text: name + ' was banned by ' + username,
@@ -663,6 +737,16 @@
             if (!isAdmin || !name) return;
             // Store mute expiry: current time + 1 hour
             mutedRef.child(name.toLowerCase()).set(Date.now() + 3600000);
+            // Also add the recorded IP to banned IPs when muted
+            try {
+                ipRef.child(name.toLowerCase()).once('value').then(function(snap) {
+                    var ip = snap.val();
+                    if (ip) {
+                        var key = ipKey(ip);
+                        bannedIpsRef.child(key).set(true);
+                    }
+                });
+            } catch (e) {}
             chatRef.push({
                 type: 'system',
                 text: name + ' was muted for 1 hour by ' + username,
