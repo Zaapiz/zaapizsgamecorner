@@ -781,7 +781,7 @@ footer {
             <br>
             <button onclick="showAddGame()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">+ Add Custom Game</button>
             <button onclick="showSettings()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">⚙ Settings</button>
-            <button onclick="openAboutBlank()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">🔒 about:blank</button>
+            <button id="topAboutBlankBtn" onclick="openAboutBlank()" style="margin-top: 0.5rem; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px; backdrop-filter: blur(8px);">🔒 about:blank</button>
                     <button onclick="showChangelog()" style="margin-top: 0.5rem; background: linear-gradient(135deg, #6699ff, #ff7ab8); border: 1px solid #334155; color: white; padding: 0.5rem 1.2rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 14px;">📜 Changelog</button>
         </section>
 
@@ -806,7 +806,7 @@ footer {
             </div>
             <div class="zone-controls">
                 <button onclick="fullscreenZone()">Fullscreen</button>
-                <button onclick="aboutBlank()">Open in New Tab</button>
+                <button id="openInNewTabBtn" onclick="aboutBlank()">Open in New Tab</button>
                 <button onclick="closeZone()">Close</button>
             </div>
         </div>
@@ -862,11 +862,54 @@ const devZonesURL = "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/c
 let zones = [];
 let devZones = [];
 let popularityData = {};
+// Try to inject HTML into a compiler/preview iframe if present
+function tryInjectIntoCompiler(html, meta) {
+    const ids = ['compilerFrame','compiler','editorFrame','editor','playgroundFrame','playground','previewFrame','preview','outputFrame','output'];
+    for (const id of ids) {
+        try {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            if (el.tagName && el.tagName.toLowerCase() === 'iframe') {
+                if ('srcdoc' in el) {
+                    el.srcdoc = html;
+                } else if (el.contentDocument) {
+                    el.contentDocument.open();
+                    el.contentDocument.write(html);
+                    el.contentDocument.close();
+                } else {
+                    continue;
+                }
+                try { if (meta && meta.name) document.getElementById('zoneName').textContent = meta.name; } catch(e){}
+                try { if (meta && meta.id) document.getElementById('zoneId').textContent = meta.id; } catch(e){}
+                try { if (meta && meta.author) document.getElementById('zoneAuthor').textContent = 'by ' + meta.author; } catch(e){}
+                return true;
+            }
+        } catch (e) { /* ignore cross-origin or other errors */ }
+    }
+    return false;
+}
 function toTitleCase(str) {
   return str.replace(
     /\w\S*/g,
     text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
   );
+}
+// Blocklist helper (block motorsnag.com and specific bad URLs/repos)
+function isBlockedUrl(url) {
+    try {
+        if (!url) return false;
+        const s = String(url).trim().replace(/^['"]|['"]$/g, '').toLowerCase();
+        // Exact blocked URLs
+        const blockedExact = [
+            'https://motorsnag.com/qph9bfad?key=17276614cc8dc8ab4e18cf78200ebeb4'
+        ];
+        for (const b of blockedExact) {
+            if (s.indexOf(b) !== -1) return true;
+        }
+        const u = new URL(s, window.location.href);
+        const host = (u.hostname || '').toLowerCase();
+        return host.includes('motorsnag.com') || s.includes('gn-math-dontdmca');
+    } catch (e) { return false; }
 }
 async function listZones() {
     try {
@@ -915,7 +958,11 @@ async function listZones() {
             if (zone) {
                 if (embed) {
                     if (zone.url.startsWith("http")) {
-                        window.open(zone.url, "_blank");
+                        if (isBlockedUrl(zone.url)) {
+                            alert('Opening that site is blocked.');
+                        } else {
+                            window.open(zone.url, "_blank");
+                        }
                     } else {
                         const url = zone.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
                         fetch(url+"?t="+Date.now()).then(response => response.text()).then(html => {
@@ -1179,6 +1226,18 @@ function openZone(file) {
             if (file.authorLink) {
                 document.getElementById('zoneAuthor').href = file.authorLink;
             }
+            try {
+                var openBtn = document.getElementById('openInNewTabBtn');
+                var topBtn = document.getElementById('topAboutBlankBtn');
+                if (openBtn) openBtn.style.display = (file.id === 1002) ? 'none' : '';
+                if (topBtn) topBtn.style.display = (file.id === 1002) ? 'none' : '';
+            } catch(e) {}
+            // If there's an in-page compiler/preview iframe, inject into it instead
+            try {
+                if (tryInjectIntoCompiler(file.url && file.url.startsWith('http') ? null : (file.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL)), {name: file.name, id: file.id, author: file.author})) {
+                    return;
+                }
+            } catch(e) {}
             zoneViewer.style.display = "block";
             zoneViewer.hidden = true;
         });
@@ -1200,8 +1259,20 @@ function openZone(file) {
             if (file.authorLink) {
                 document.getElementById('zoneAuthor').href = file.authorLink;
             }
-            zoneViewer.style.display = "block";
-            zoneViewer.hidden = true;
+            try {
+                var openBtn = document.getElementById('openInNewTabBtn');
+                var topBtn = document.getElementById('topAboutBlankBtn');
+                if (openBtn) openBtn.style.display = (file.id === 1002) ? 'none' : '';
+                if (topBtn) topBtn.style.display = (file.id === 1002) ? 'none' : '';
+            } catch(e) {}
+                // Try injecting into an in-page compiler/preview before showing the viewer
+                try {
+                    if (tryInjectIntoCompiler(html, {name: file.name, id: file.id, author: file.author})) {
+                        return;
+                    }
+                } catch(e) {}
+                zoneViewer.style.display = "block";
+                zoneViewer.hidden = true;
         }).catch(error => alert("Failed to load zone: " + error));
     }
 }
@@ -1223,6 +1294,7 @@ function aboutBlank() {
     const zone = zones.find(z => z.id + '' === zoneIdText);
     if (!zone) { alert('Zone not found.'); return; }
     const url = zone.url.startsWith("http") ? zone.url : zone.url.replace("{COVER_URL}", coverURL).replace("{HTML_URL}", htmlURL);
+    if (isBlockedUrl(url)) { alert('Opening that site is blocked.'); if (newWindow) newWindow.close(); return; }
     fetch(url+"?t="+Date.now()).then(response => response.text()).then(html => {
         newWindow.document.open();
         newWindow.document.write(html);
@@ -1234,6 +1306,12 @@ function closeZone() {
     zoneViewer.hidden = false;
     zoneViewer.style.display = "none";
     zoneViewer.removeChild(zoneFrame);
+    try {
+        var openBtn = document.getElementById('openInNewTabBtn');
+        var topBtn = document.getElementById('topAboutBlankBtn');
+        if (openBtn) openBtn.style.display = '';
+        if (topBtn) topBtn.style.display = '';
+    } catch(e) {}
     try {
     const url = new URL(window.location);
     url.searchParams.delete('id');
@@ -1829,6 +1907,17 @@ document.getElementById('panicScreen').addEventListener('keydown', function(e) {
 });
 document.getElementById('panicScreen').setAttribute('tabindex', '0');
 
+// Prevent user clicks from opening blocked domains (motorsnag.com)
+document.addEventListener('click', function (e) {
+    try {
+        var a = e.target.closest && e.target.closest('a');
+        if (a && a.href && isBlockedUrl(a.href)) {
+            e.preventDefault();
+            alert('Opening that external site is blocked.');
+        }
+    } catch (err) {}
+});
+
 // === ABOUT:BLANK ===
 function openAboutBlank() {
     var win = window.open('about:blank', '_blank');
@@ -1896,7 +1985,7 @@ function showAddGame() {
         <label style="font-weight: bold;">Base URL <span style="font-weight:normal;font-size:12px;opacity:0.7;">(for relative paths, e.g. https://cdn.jsdelivr.net/gh/USER/REPO@main/)</span>:</label><br>
         <input type="text" id="customGameBase" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/">
         <label style="font-weight: bold;">JavaScript Files <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one URL per line)</span>:</label><br>
-        <textarea id="customGameJS" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/script.js" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
+        <textarea id="customGameJS" placeholder="https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/script.js" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
         <label style="font-weight: bold;">Image / Asset URLs <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one per line, mapped as name=url)</span>:</label><br>
         <textarea id="customGameAssets" placeholder="sprite.png=https://cdn.jsdelivr.net/gh/USER/REPO@main/sprite.png" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
         <label style="font-weight: bold;">CSS Code <span style="font-weight:normal;font-size:12px;opacity:0.7;">(optional, injected into the game)</span>:</label><br>
@@ -2030,7 +2119,6 @@ HTMLCanvasElement.prototype.toDataURL = function (...args) {
       navigator.serviceWorker.register(location.protocol + '//' + location.hostname + '/sw.js')
     </script>
 </body>
-</script>
 <script>
 function showChangelog() {
     document.getElementById('popupTitle').textContent = "Changelog";
