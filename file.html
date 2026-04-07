@@ -860,6 +860,7 @@ let zonesURL = zonesurls[Math.floor(Math.random() * zonesurls.length)];
 const coverURL = "https://cdn.jsdelivr.net/gh/%67%6e%2d%6d%61%74%68/covers@main";
 const htmlURL = "https://cdn.jsdelivr.net/gh/%67%6e%2d%6d%61%74%68/html@main";
 const devZonesURL = "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/custom-zones.json";
+const MAX_JS_FILES = 3;
 let zones = [];
 let devZones = [];
 let popularityData = {};
@@ -1194,6 +1195,18 @@ function openZone(file) {
     }
     if (file.url.startsWith("http")) {
         function loadHttpZone(html) {
+            if (file.jsFiles && file.jsFiles.length) {
+                const scripts = file.jsFiles.slice(0, MAX_JS_FILES)
+                    .filter(u => u && (u.trim().startsWith('https://') || u.trim().startsWith('http://')))
+                    .map(u => '<script src="' + u.trim().replace(/["'<>]/g, '') + '"><\/script>').join('\n');
+                if (scripts) {
+                    if (html.includes('</body>')) {
+                        html = html.replace('</body>', scripts + '</body>');
+                    } else {
+                        html += scripts;
+                    }
+                }
+            }
             var newFrame = document.createElement("iframe");
             newFrame.id = "zoneFrame";
             if (zoneFrame && zoneFrame.parentNode) {
@@ -1985,8 +1998,10 @@ function showAddGame() {
         <input type="text" id="customGameName" placeholder="Enter game name...">
         <label style="font-weight: bold;">Base URL <span style="font-weight:normal;font-size:12px;opacity:0.7;">(for relative paths, e.g. https://cdn.jsdelivr.net/gh/USER/REPO@main/)</span>:</label><br>
         <input type="text" id="customGameBase" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/">
-        <label style="font-weight: bold;">JavaScript Files <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one URL per line)</span>:</label><br>
-        <textarea id="customGameJS" placeholder="https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/script.js" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
+        <label style="font-weight: bold;">JavaScript Files <span style="font-weight:normal;font-size:12px;opacity:0.7;">(up to 3 URLs)</span>:</label><br>
+        <input type="text" id="customGameJS1" placeholder="JS File 1: https://cdn.jsdelivr.net/gh/USER/REPO@main/script.js" style="width:100%;margin-bottom:6px;">
+        <input type="text" id="customGameJS2" placeholder="JS File 2 (optional)" style="width:100%;margin-bottom:6px;">
+        <input type="text" id="customGameJS3" placeholder="JS File 3 (optional)" style="width:100%;margin-bottom:6px;">
         <label style="font-weight: bold;">Image / Asset URLs <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one per line, mapped as name=url)</span>:</label><br>
         <textarea id="customGameAssets" placeholder="sprite.png=https://cdn.jsdelivr.net/gh/USER/REPO@main/sprite.png" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
         <label style="font-weight: bold;">CSS Code <span style="font-weight:normal;font-size:12px;opacity:0.7;">(optional, injected into the game)</span>:</label><br>
@@ -2006,7 +2021,11 @@ function addCustomGame() {
     const name = document.getElementById('customGameName').value.trim();
     const html = document.getElementById('customGameHTML').value;
     const baseUrl = document.getElementById('customGameBase').value.trim();
-    const jsFiles = document.getElementById('customGameJS').value.trim().split('\n').filter(u => u.trim());
+    const jsFiles = [
+        document.getElementById('customGameJS1').value.trim(),
+        document.getElementById('customGameJS2').value.trim(),
+        document.getElementById('customGameJS3').value.trim()
+    ].filter(u => u && (u.startsWith('https://') || u.startsWith('http://')));
     const assets = document.getElementById('customGameAssets').value.trim().split('\n').filter(u => u.trim());
     const css = document.getElementById('customGameCSS').value.trim();
     if (!name || !html) { alert('Please enter both a name and HTML code.'); return; }
@@ -2073,11 +2092,15 @@ function buildCustomGameHTML(game) {
         });
     }
     if (game.jsFiles && game.jsFiles.length) {
-        const scripts = game.jsFiles.map(u => '<script src="' + u.trim() + '"><\/script>').join('\n');
-        if (html.includes('</body>')) {
-            html = html.replace('</body>', scripts + '</body>');
-        } else {
-            html += scripts;
+        const scripts = game.jsFiles.slice(0, MAX_JS_FILES)
+            .filter(u => u && (u.trim().startsWith('https://') || u.trim().startsWith('http://')))
+            .map(u => '<script src="' + u.trim().replace(/["'<>]/g, '') + '"><\/script>').join('\n');
+        if (scripts) {
+            if (html.includes('</body>')) {
+                html = html.replace('</body>', scripts + '</body>');
+            } else {
+                html += scripts;
+            }
         }
     }
     return html;
