@@ -16,5 +16,14 @@
         "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/chatroom-icon.png",
         "url": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/customhtmls/chatroom.html",
         "special": ["custom"]
+    },
+        {
+        "id": 10003,
+        "name": "Proxy",
+        "author": "Zaapiz",
+        "authorLink": "https://www.tiktok.com/@notzaapiz",
+        "cover": "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/covers/chatroom-icon.png",
+        "url": "https://cdn.jsdelivr.net/gh/Zaapiz/Zaapizgamecornerpaid@main/proxy/index.html",
+        "special": ["custom"]
     }
 ]
