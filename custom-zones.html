@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Zones &mdash; Developer Guide</title>
+    <style>
+        :root {
+            --primary: #ff7ab8;
+            --primary-hover: #6699ff;
+            --accent: #8b5cf6;
+            --text: #ff7ab8;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --border: #334155;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --gradient-primary: linear-gradient(135deg, #6699ff 0%, #ff7ab8 100%);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 780px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        section h2 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            color: #cbd5e1;
+            margin-bottom: 4px;
+            margin-top: 0.75rem;
+        }
+
+        label:first-of-type { margin-top: 0; }
+
+        label span {
+            font-weight: 400;
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 0.6rem 0.875rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 13px;
+            font-family: monospace;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            border-color: var(--primary);
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.7rem 1.5rem;
+            border-radius: var(--radius);
+            border: 0;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover { opacity: 0.85; }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .btn-copy {
+            background: #334155;
+            color: #e2e8f0;
+            font-size: 12px;
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm);
+        }
+
+        pre {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 13px;
+            color: #7dd3fc;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 0.5rem;
+        }
+
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .output-header span {
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+        }
+
+        .schema-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 0.5rem;
+        }
+
+        .schema-table th {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            background: #0f172a;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .schema-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #1e293b;
+            vertical-align: top;
+        }
+
+        .schema-table td code {
+            background: #0f172a;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #7dd3fc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-required { background: rgba(239,68,68,0.15); color: #f87171; }
+        .badge-optional { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+        .notice {
+            background: rgba(255, 122, 184, 0.08);
+            border: 1px solid rgba(255, 122, 184, 0.25);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem 1rem;
+            font-size: 13px;
+            color: #cbd5e1;
+            margin-top: 0.75rem;
+        }
+
+        .notice strong { color: var(--primary); }
+
+        .copied-toast {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .copied-toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Custom Zones</h1>
+    <p class="subtitle">Developer guide &mdash; add your zone to <code>custom-zones.json</code> with up to 3 JavaScript files.</p>
+
+    <!-- Schema reference -->
+    <section>
+        <h2>JSON Schema</h2>
+        <table class="schema-table">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>id</code></td>
+                    <td>number</td>
+                    <td><span class="badge badge-required">required</span></td>
+                    <td>Unique integer ID. Use 10000+ for custom zones.</td>
+                </tr>
+                <tr>
+                    <td><code>name</code></td>
+                    <td>string</td>
+                    <td><span class="badge badge-required">required</span></td>
+                    <td>Display name of the zone.</td>
+                </tr>
+                <tr>
+                    <td><code>author</code></td>
+                    <td>string</td>
+                    <td><span class="badge badge-optional">optional</span></td>
+                    <td>Author's display name.</td>
+                </tr>
+                <tr>
+                    <td><code>authorLink</code></td>
+                    <td>string</td>
+                    <td><span class="badge badge-optional">optional</span></td>
+                    <td>URL linking to the author's profile.</td>
+                </tr>
+                <tr>
+                    <td><code>cover</code></td>
+                    <td>string</td>
+                    <td><span class="badge badge-required">required</span></td>
+                    <td>Absolute URL of the cover image (PNG/JPG).</td>
+                </tr>
+                <tr>
+                    <td><code>url</code></td>
+                    <td>string</td>
+                    <td><span class="badge badge-required">required</span></td>
+                    <td>Absolute URL of the zone HTML file.</td>
+                </tr>
+                <tr>
+                    <td><code>jsFiles</code></td>
+                    <td>string[]</td>
+                    <td><span class="badge badge-optional">optional</span></td>
+                    <td>Up to 3 JavaScript file URLs to inject into the zone before it loads.</td>
+                </tr>
+                <tr>
+                    <td><code>special</code></td>
+                    <td>string[]</td>
+                    <td><span class="badge badge-optional">optional</span></td>
+                    <td>Tags, e.g. <code>["custom"]</code>.</td>
+                </tr>
+            </tbody>
+        </table>
+        <div class="notice">
+            <strong>jsFiles</strong> — each URL is injected as a <code>&lt;script src="..."&gt;</code> tag before <code>&lt;/body&gt;</code> when the zone is loaded. Maximum of <strong>3</strong> entries.
+        </div>
+    </section>
+
+    <!-- JSON generator -->
+    <section>
+        <h2>Entry Generator</h2>
+        <p style="font-size:13px;color:#94a3b8;margin-bottom:1rem;">Fill in the fields below to generate your <code>custom-zones.json</code> entry.</p>
+
+        <label>ID <span>(unique integer, e.g. 10003)</span></label>
+        <input type="number" id="genId" placeholder="10003" min="10000">
+
+        <label>Name</label>
+        <input type="text" id="genName" placeholder="My Awesome Zone">
+
+        <label>Author <span>(optional)</span></label>
+        <input type="text" id="genAuthor" placeholder="YourName">
+
+        <label>Author Link <span>(optional)</span></label>
+        <input type="text" id="genAuthorLink" placeholder="https://example.com">
+
+        <label>Cover URL</label>
+        <input type="text" id="genCover" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/cover.png">
+
+        <label>Zone HTML URL</label>
+        <input type="text" id="genUrl" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/index.html">
+
+        <label>JavaScript File 1 <span>(optional)</span></label>
+        <input type="text" id="genJs1" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/game.js">
+
+        <label>JavaScript File 2 <span>(optional)</span></label>
+        <input type="text" id="genJs2" placeholder="">
+
+        <label>JavaScript File 3 <span>(optional)</span></label>
+        <input type="text" id="genJs3" placeholder="">
+
+        <button class="btn btn-primary" onclick="generateEntry()">Generate JSON Entry</button>
+
+        <div id="outputSection" style="display:none;">
+            <div class="output-header">
+                <span>Generated Entry</span>
+                <button class="btn btn-copy" onclick="copyOutput()">Copy</button>
+            </div>
+            <pre id="outputPre"></pre>
+        </div>
+    </section>
+
+    <!-- Instructions -->
+    <section>
+        <h2>How to Submit</h2>
+        <ol style="padding-left:1.25rem;line-height:2;font-size:13px;color:#cbd5e1;">
+            <li>Generate your entry using the form above.</li>
+            <li>Open <code>custom-zones.json</code> in the repository.</li>
+            <li>Add your entry to the JSON array.</li>
+            <li>Open a Pull Request — your zone will appear on the site after merge.</li>
+        </ol>
+        <div class="notice" style="margin-top:1rem;">
+            Host your HTML and JS files on a CDN (e.g. <strong>JSDelivr</strong>) so they can be fetched by the site. Files served directly from a GitHub branch may be cached &mdash; use a tagged release or commit SHA for stability.
+        </div>
+    </section>
+</div>
+
+<div class="copied-toast" id="copiedToast">Copied!</div>
+
+<script>
+    function generateEntry() {
+        const id = parseInt(document.getElementById('genId').value.trim(), 10);
+        const name = document.getElementById('genName').value.trim();
+        const author = document.getElementById('genAuthor').value.trim();
+        const authorLink = document.getElementById('genAuthorLink').value.trim();
+        const cover = document.getElementById('genCover').value.trim();
+        const url = document.getElementById('genUrl').value.trim();
+        const js1 = document.getElementById('genJs1').value.trim();
+        const js2 = document.getElementById('genJs2').value.trim();
+        const js3 = document.getElementById('genJs3').value.trim();
+
+        if (!id || !name || !cover || !url) {
+            alert('Please fill in ID, Name, Cover URL, and Zone HTML URL.');
+            return;
+        }
+
+        const entry = { id, name };
+        if (author) entry.author = author;
+        if (authorLink) entry.authorLink = authorLink;
+        entry.cover = cover;
+        entry.url = url;
+
+        const jsFiles = [js1, js2, js3].filter(u => u);
+        if (jsFiles.length) entry.jsFiles = jsFiles;
+
+        entry.special = ["custom"];
+
+        document.getElementById('outputPre').textContent = JSON.stringify(entry, null, 4);
+        document.getElementById('outputSection').style.display = 'block';
+    }
+
+    function copyOutput() {
+        const text = document.getElementById('outputPre').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            const toast = document.getElementById('copiedToast');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        });
+    }
+</script>
+</body>
+</html>
