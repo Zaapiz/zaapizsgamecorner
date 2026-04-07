@@ -811,6 +811,7 @@ footer {
                 <button onclick="closeZone()">Close</button>
             </div>
         </div>
+        <div id="customFileTabs" style="display:none;padding:6px 12px;background:var(--bg-secondary);border-bottom:1px solid var(--border);flex-wrap:wrap;gap:4px;"></div>
         <iframe id="zoneFrame"></iframe>
     </div>
 
@@ -860,7 +861,7 @@ let zonesURL = zonesurls[Math.floor(Math.random() * zonesurls.length)];
 const coverURL = "https://cdn.jsdelivr.net/gh/%67%6e%2d%6d%61%74%68/covers@main";
 const htmlURL = "https://cdn.jsdelivr.net/gh/%67%6e%2d%6d%61%74%68/html@main";
 const devZonesURL = "https://cdn.jsdelivr.net/gh/Zaapiz/zaapizsgamecorner@main/custom-zones.json";
-const MAX_JS_FILES = 3;
+const MAX_JS_FILES = 20;
 let zones = [];
 let devZones = [];
 let popularityData = {};
@@ -913,6 +914,17 @@ function isBlockedUrl(url) {
         return host.includes('motorsnag.com') || s.includes('gn-math-dontdmca');
     } catch (e) { return false; }
 }
+// Block window.open popups to motorsnag.com (e.g. from CDN scripts)
+(function () {
+    var _origOpen = window.open.bind(window);
+    window.open = function (url) {
+        if (url && isBlockedUrl(String(url))) {
+            console.warn('[Popup blocked]', url);
+            return null;
+        }
+        return _origOpen.apply(window, arguments);
+    };
+})();
 async function listZones() {
     try {
       let sharesponse;
@@ -1320,6 +1332,10 @@ function closeZone() {
     zoneViewer.hidden = false;
     zoneViewer.style.display = "none";
     zoneViewer.removeChild(zoneFrame);
+    // Hide custom game file tabs
+    const tabsEl = document.getElementById('customFileTabs');
+    if (tabsEl) tabsEl.style.display = 'none';
+    window._currentCustomGame = null;
     try {
         var openBtn = document.getElementById('openInNewTabBtn');
         var topBtn = document.getElementById('topAboutBlankBtn');
@@ -1990,47 +2006,128 @@ function saveCustomGames(games) {
     store.set('customGames', JSON.stringify(games));
 }
 
+// Helpers used by the dynamic Add Custom Game popup
+function _addHtmlFileRow(name, content) {
+    const container = document.getElementById('customHtmlFilesContainer');
+    if (!container) return;
+    const isFirst = container.children.length === 0;
+    const div = document.createElement('div');
+    div.className = 'custom-file-row';
+    div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'custom-html-name';
+    nameInput.placeholder = isFirst ? 'index.html (main page)' : 'page2.html';
+    nameInput.value = name || '';
+    nameInput.style.cssText = 'flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;';
+    header.appendChild(nameInput);
+    if (!isFirst) {
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '✕ Remove';
+        removeBtn.style.cssText = 'background:none;border:1px solid #ff4d6d;color:#ff4d6d;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;';
+        removeBtn.onclick = () => div.remove();
+        header.appendChild(removeBtn);
+    } else {
+        const label = document.createElement('span');
+        label.textContent = 'Main file';
+        label.style.cssText = 'font-size:11px;opacity:0.6;white-space:nowrap;';
+        header.appendChild(label);
+    }
+    div.appendChild(header);
+    const textarea = document.createElement('textarea');
+    textarea.className = 'custom-html-content';
+    textarea.placeholder = 'Paste HTML code here...';
+    textarea.style.cssText = 'width:100%;min-height:120px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;';
+    textarea.value = content || '';
+    div.appendChild(textarea);
+    container.appendChild(div);
+}
+
+function _addJsUrlRow(url) {
+    const container = document.getElementById('customJsUrlsContainer');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'custom-js-url';
+    input.placeholder = 'https://cdn.jsdelivr.net/gh/USER/REPO@main/script.js';
+    input.value = url || '';
+    input.style.cssText = 'flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;';
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.style.cssText = 'background:none;border:1px solid #ff4d6d;color:#ff4d6d;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;';
+    removeBtn.onclick = () => div.remove();
+    div.appendChild(input);
+    div.appendChild(removeBtn);
+    container.appendChild(div);
+}
+
 function showAddGame() {
     document.getElementById('popupTitle').textContent = "Add Custom Game";
     const popupBody = document.getElementById('popupBody');
+    const btnStyle = 'background:none;border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-top:4px;';
     popupBody.innerHTML = `
-        <label style="font-weight: bold;">Game Name:</label><br>
+        <label style="font-weight:bold;">Game Name:</label><br>
         <input type="text" id="customGameName" placeholder="Enter game name...">
-        <label style="font-weight: bold;">Base URL <span style="font-weight:normal;font-size:12px;opacity:0.7;">(for relative paths, e.g. https://cdn.jsdelivr.net/gh/USER/REPO@main/)</span>:</label><br>
-        <input type="text" id="customGameBase" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/">
-        <label style="font-weight: bold;">JavaScript Files <span style="font-weight:normal;font-size:12px;opacity:0.7;">(up to 3 URLs)</span>:</label><br>
-        <input type="text" id="customGameJS1" placeholder="JS File 1: https://cdn.jsdelivr.net/gh/USER/REPO@main/script.js" style="width:100%;margin-bottom:6px;">
-        <input type="text" id="customGameJS2" placeholder="JS File 2 (optional)" style="width:100%;margin-bottom:6px;">
-        <input type="text" id="customGameJS3" placeholder="JS File 3 (optional)" style="width:100%;margin-bottom:6px;">
-        <label style="font-weight: bold;">Image / Asset URLs <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one per line, mapped as name=url)</span>:</label><br>
-        <textarea id="customGameAssets" placeholder="sprite.png=https://cdn.jsdelivr.net/gh/USER/REPO@main/sprite.png" style="width:100%;min-height:80px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
-        <label style="font-weight: bold;">CSS Code <span style="font-weight:normal;font-size:12px;opacity:0.7;">(optional, injected into the game)</span>:</label><br>
-        <textarea id="customGameCSS" placeholder="body { background: #000; color: #fff; }" style="width:100%;min-height:100px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;"></textarea>
-        <label style="font-weight: bold;">HTML Code:</label><br>
-        <textarea id="customGameHTML" placeholder="Paste your HTML code here..." style="width:100%;min-height:200px;padding:0.875rem 1rem;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-secondary);color:var(--text);font-size:14px;font-family:monospace;resize:vertical;"></textarea>
-        <br><br>
+        <details open style="margin:10px 0 6px;">
+            <summary style="font-weight:bold;cursor:pointer;padding:4px 0;">HTML Files <span style="font-weight:normal;font-size:12px;opacity:0.7;">(first = main page)</span></summary>
+            <div id="customHtmlFilesContainer" style="margin-top:8px;"></div>
+            <button type="button" onclick="_addHtmlFileRow()" style="${btnStyle}">+ Add HTML File</button>
+        </details>
+        <details open style="margin:6px 0;">
+            <summary style="font-weight:bold;cursor:pointer;padding:4px 0;">JavaScript Files</summary>
+            <div id="customJsUrlsContainer" style="margin-top:8px;"></div>
+            <button type="button" onclick="_addJsUrlRow()" style="${btnStyle}">+ Add JS URL</button>
+            <label style="font-weight:bold;margin-top:10px;display:block;">Inline JS Code <span style="font-weight:normal;font-size:12px;opacity:0.7;">(optional, runs in every HTML file)</span>:</label>
+            <textarea id="customGameJSInline" placeholder="// JavaScript code injected into the game..." style="width:100%;min-height:80px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;margin-top:4px;"></textarea>
+        </details>
+        <details style="margin:6px 0;">
+            <summary style="font-weight:bold;cursor:pointer;padding:4px 0;">Advanced Options</summary>
+            <label style="font-weight:bold;margin-top:8px;display:block;">Base URL <span style="font-weight:normal;font-size:12px;opacity:0.7;">(for relative paths)</span>:</label>
+            <input type="text" id="customGameBase" placeholder="https://cdn.jsdelivr.net/gh/USER/REPO@main/">
+            <label style="font-weight:bold;margin-top:8px;display:block;">CSS Code <span style="font-weight:normal;font-size:12px;opacity:0.7;">(injected into game)</span>:</label>
+            <textarea id="customGameCSS" placeholder="body { background: #000; color: #fff; }" style="width:100%;min-height:80px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>
+            <label style="font-weight:bold;margin-top:8px;display:block;">Asset URL Mappings <span style="font-weight:normal;font-size:12px;opacity:0.7;">(one per line: name=url)</span>:</label>
+            <textarea id="customGameAssets" placeholder="sprite.png=https://cdn.jsdelivr.net/gh/USER/REPO@main/sprite.png" style="width:100%;min-height:60px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-secondary);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;box-sizing:border-box;"></textarea>
+        </details>
+        <br>
         <button onclick="addCustomGame()" style="background:var(--gradient-primary);color:white;border:0;padding:0.75rem 1.5rem;border-radius:var(--radius);cursor:pointer;font-weight:600;font-size:15px;width:100%;">Add Game</button>
         <br><br>
         <button onclick="showManageGames()" style="background:none;border:1px solid var(--border);color:var(--text);padding:0.5rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:14px;width:100%;">Manage Custom Games</button>
     `;
     popupBody.contentEditable = false;
     document.getElementById('popupOverlay').style.display = "flex";
+    _addHtmlFileRow('index.html', '');
+    _addJsUrlRow('');
 }
 
 function addCustomGame() {
     const name = document.getElementById('customGameName').value.trim();
-    const html = document.getElementById('customGameHTML').value;
-    const baseUrl = document.getElementById('customGameBase').value.trim();
-    const jsFiles = [
-        document.getElementById('customGameJS1').value.trim(),
-        document.getElementById('customGameJS2').value.trim(),
-        document.getElementById('customGameJS3').value.trim()
-    ].filter(u => u && (u.startsWith('https://') || u.startsWith('http://')));
-    const assets = document.getElementById('customGameAssets').value.trim().split('\n').filter(u => u.trim());
-    const css = document.getElementById('customGameCSS').value.trim();
-    if (!name || !html) { alert('Please enter both a name and HTML code.'); return; }
+    if (!name) { alert('Please enter a game name.'); return; }
+    const htmlFileRows = document.querySelectorAll('#customHtmlFilesContainer .custom-file-row');
+    const htmlFiles = [];
+    let hasContent = false;
+    htmlFileRows.forEach(row => {
+        const fname = (row.querySelector('.custom-html-name').value || '').trim() || 'index.html';
+        const content = row.querySelector('.custom-html-content').value || '';
+        if (content.trim()) hasContent = true;
+        htmlFiles.push({ name: fname, content });
+    });
+    if (!hasContent) { alert('Please enter HTML code for at least one file.'); return; }
+    const jsFiles = Array.from(document.querySelectorAll('#customJsUrlsContainer .custom-js-url'))
+        .map(el => el.value.trim())
+        .filter(u => u && (u.startsWith('http://') || u.startsWith('https://')));
+    const jsInline = (document.getElementById('customGameJSInline')?.value || '').trim();
+    const baseUrl = (document.getElementById('customGameBase')?.value || '').trim();
+    const css = (document.getElementById('customGameCSS')?.value || '').trim();
+    const assets = (document.getElementById('customGameAssets')?.value || '').trim().split('\n').filter(l => l.trim());
     const games = getCustomGames();
-    games.push({ name, html, baseUrl, jsFiles, assets, css, id: 'custom_' + Date.now() });
+    games.push({ name, htmlFiles, jsFiles, jsInline, baseUrl, css, assets, id: 'custom_' + Date.now() });
     saveCustomGames(games);
     closePopup();
     displayZones(zones);
@@ -2043,7 +2140,18 @@ function showManageGames() {
     if (games.length === 0) {
         popupBody.innerHTML = '<p>No custom games added yet.</p>';
     } else {
-        popupBody.innerHTML = games.map((g, i) => `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);"><span>${g.name}</span><button onclick="deleteCustomGame(${i})" style="background:none;border:1px solid #ff4d6d;color:#ff4d6d;padding:0.3rem 0.8rem;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Delete</button></div>`).join('');
+        popupBody.innerHTML = games.map((g, i) => {
+            const fileCount = g.htmlFiles ? g.htmlFiles.length : 1;
+            const jsCount = (g.jsFiles ? g.jsFiles.filter(u => u).length : 0) + (g.jsInline ? 1 : 0);
+            const meta = [
+                fileCount + ' HTML file' + (fileCount !== 1 ? 's' : ''),
+                jsCount ? jsCount + ' JS file' + (jsCount !== 1 ? 's' : '') : ''
+            ].filter(Boolean).join(', ');
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid var(--border);">
+                <div><span style="font-weight:600;">${g.name}</span><br><span style="font-size:12px;opacity:0.6;">${meta}</span></div>
+                <button onclick="deleteCustomGame(${i})" style="background:none;border:1px solid #ff4d6d;color:#ff4d6d;padding:0.3rem 0.8rem;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">Delete</button>
+            </div>`;
+        }).join('');
     }
     popupBody.contentEditable = false;
     document.getElementById('popupOverlay').style.display = "flex";
@@ -2057,14 +2165,30 @@ function deleteCustomGame(index) {
     displayZones(zones);
 }
 
-function buildCustomGameHTML(game) {
-    let html = game.html;
+// Blocker script injected into every custom game HTML to prevent motorsnag.com popups from CDN scripts
+const _POPUP_BLOCKER = '<script>(function(){var o=window.open.bind(window);window.open=function(u){if(String(u||"").toLowerCase().indexOf("motorsnag.com")!==-1)return null;return o.apply(window,arguments);};document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a");if(a&&a.href&&String(a.href).toLowerCase().indexOf("motorsnag.com")!==-1)e.preventDefault();},true);})();<\/script>';
+
+function buildCustomGameHTML(game, htmlIndex) {
+    if (typeof htmlIndex !== 'number') htmlIndex = 0;
+    // Support both legacy {html} format and new {htmlFiles} format
+    let html;
+    if (game.htmlFiles && game.htmlFiles.length > 0) {
+        html = (game.htmlFiles[htmlIndex] || game.htmlFiles[0]).content || '';
+    } else {
+        html = game.html || '';
+    }
+    // Inject popup blocker before any other scripts
+    if (/<head[\s>]/i.test(html)) {
+        html = html.replace(/<head([\s>])/i, '<head$1' + _POPUP_BLOCKER);
+    } else if (/<html[\s>]/i.test(html)) {
+        html = html.replace(/<html([^>]*)>/i, '<html$1><head>' + _POPUP_BLOCKER + '</head>');
+    } else {
+        html = _POPUP_BLOCKER + html;
+    }
     if (game.baseUrl) {
         const baseTag = '<base href="' + game.baseUrl + '">';
         if (html.includes('<head>')) {
             html = html.replace('<head>', '<head>' + baseTag);
-        } else if (html.includes('<html>')) {
-            html = html.replace('<html>', '<html><head>' + baseTag + '</head>');
         } else {
             html = baseTag + html;
         }
@@ -2073,8 +2197,6 @@ function buildCustomGameHTML(game) {
         const styleTag = '<style>' + game.css + '</style>';
         if (html.includes('</head>')) {
             html = html.replace('</head>', styleTag + '</head>');
-        } else if (html.includes('<body>')) {
-            html = html.replace('<body>', styleTag + '<body>');
         } else {
             html = styleTag + html;
         }
@@ -2091,23 +2213,62 @@ function buildCustomGameHTML(game) {
             }
         });
     }
-    if (game.jsFiles && game.jsFiles.length) {
-        const scripts = game.jsFiles.slice(0, MAX_JS_FILES)
-            .filter(u => u && (u.trim().startsWith('https://') || u.trim().startsWith('http://')))
-            .map(u => '<script src="' + u.trim().replace(/["'<>]/g, '') + '"><\/script>').join('\n');
-        if (scripts) {
-            if (html.includes('</body>')) {
-                html = html.replace('</body>', scripts + '</body>');
-            } else {
-                html += scripts;
-            }
+    const jsUrls = (game.jsFiles || []).slice(0, MAX_JS_FILES)
+        .filter(u => u && (u.trim().startsWith('https://') || u.trim().startsWith('http://')));
+    if (jsUrls.length) {
+        const scripts = jsUrls.map(u => '<script src="' + u.trim().replace(/["'<>]/g, '') + '"><\/script>').join('\n');
+        if (html.includes('</body>')) {
+            html = html.replace('</body>', scripts + '</body>');
+        } else {
+            html += scripts;
+        }
+    }
+    if (game.jsInline && game.jsInline.trim()) {
+        const inlineScript = '<script>' + game.jsInline + '<\/script>';
+        if (html.includes('</body>')) {
+            html = html.replace('</body>', inlineScript + '</body>');
+        } else {
+            html += inlineScript;
         }
     }
     return html;
 }
 
+function switchCustomGameFile(index) {
+    const game = window._currentCustomGame;
+    if (!game) return;
+    zoneFrame.srcdoc = buildCustomGameHTML(game, index);
+    const htmlFiles = game.htmlFiles || [];
+    htmlFiles.forEach((_, i) => {
+        const tab = document.getElementById('customFileTab_' + i);
+        if (tab) tab.style.fontWeight = i === index ? 'bold' : 'normal';
+    });
+}
+
 function openCustomGame(game) {
-    const html = buildCustomGameHTML(game);
+    const htmlFiles = (game.htmlFiles && game.htmlFiles.length > 0)
+        ? game.htmlFiles
+        : [{ name: 'index.html', content: game.html || '' }];
+    const tabsEl = document.getElementById('customFileTabs');
+    if (tabsEl) {
+        if (htmlFiles.length > 1) {
+            tabsEl.innerHTML = '';
+            htmlFiles.forEach((f, i) => {
+                const btn = document.createElement('button');
+                btn.id = 'customFileTab_' + i;
+                btn.onclick = () => switchCustomGameFile(i);
+                btn.style.cssText = 'padding:4px 12px;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text);border-radius:6px;cursor:pointer;font-size:13px;font-weight:' + (i === 0 ? 'bold' : 'normal') + ';';
+                btn.textContent = f.name;
+                tabsEl.appendChild(btn);
+            });
+            tabsEl.style.display = 'flex';
+            window._currentCustomGame = game;
+        } else {
+            tabsEl.style.display = 'none';
+            window._currentCustomGame = null;
+        }
+    }
+    const html = buildCustomGameHTML(game, 0);
     var newFrame = document.createElement("iframe");
     newFrame.id = "zoneFrame";
     if (zoneFrame && zoneFrame.parentNode) {
