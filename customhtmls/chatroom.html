@@ -388,7 +388,28 @@
 
         // SHA-256 hash of the admin password (password itself is NOT stored)
         // To change: pick a new password, hash it with SHA-256, paste the hex here
-        var ADMIN_HASH = 'c5e78416e048f5a275c801940b47c24250aa4b5d86100d49c8e925044239210d';
+        var ADMIN_HASH = '88ef42373adc5d4ec507c93ff99cd712d94fb669297427bb86f920b270c7d382';
+
+        // Whether an admin hash is configured
+        var HAS_ADMIN_HASH = typeof ADMIN_HASH !== 'undefined' && ADMIN_HASH && String(ADMIN_HASH).trim() !== '';
+
+        // Hide admin login UI and clear stored admin flag if ADMIN_HASH is not set.
+        (function() {
+            try {
+                var adminToggle = document.querySelector('.admin-toggle');
+                var adminField = document.getElementById('adminField');
+                var adminPanelBtn = document.getElementById('adminPanelBtn');
+                if (!HAS_ADMIN_HASH) {
+                    if (adminToggle) adminToggle.style.display = 'none';
+                    if (adminField) adminField.style.display = 'none';
+                    if (adminPanelBtn) adminPanelBtn.style.display = 'none';
+                    try { localStorage.setItem('chatAdmin', 'false'); } catch (e) {}
+                } else {
+                    if (adminToggle) adminToggle.style.display = 'block';
+                    if (adminPanelBtn && localStorage.getItem('chatAdmin') === 'true') adminPanelBtn.style.display = 'inline-block';
+                }
+            } catch (e) {}
+        })();
 
         async function hashPassword(pw) {
             var buf = new TextEncoder().encode(pw);
@@ -419,6 +440,38 @@
         // IP tracking and IP-ban lists
         var ipRef = db.ref('chatroom/ips');
         var bannedIpsRef = db.ref('chatroom/bannedIps');
+        // Server-managed admin list (chatroom/admins)
+        var adminsRef = db.ref('chatroom/admins');
+        var admins = {};
+
+        // Listen for admin list changes (server-managed). Updates local `isAdmin` and UI when needed.
+        adminsRef.on('value', function(snap) {
+            admins = snap.val() || {};
+            try {
+                var btn = document.getElementById('adminPanelBtn');
+                var header = document.getElementById('headerUser');
+                var lowerName = username && username.toLowerCase && username.toLowerCase();
+                var iAmAdminInDB = lowerName && admins[lowerName];
+                if (iAmAdminInDB) {
+                    if (!isAdmin) {
+                        isAdmin = true;
+                        try { localStorage.setItem('chatAdmin', 'true'); } catch(e) {}
+                        if (btn) btn.style.display = 'inline-block';
+                        if (header) header.textContent = username + ' ⭐';
+                    }
+                } else {
+                    var isPasswordAdmin = (typeof HAS_ADMIN_HASH !== 'undefined' && HAS_ADMIN_HASH) && localStorage.getItem('chatAdmin') === 'true';
+                    if (!isPasswordAdmin) {
+                        if (isAdmin) {
+                            isAdmin = false;
+                            try { localStorage.setItem('chatAdmin', 'false'); } catch(e) {}
+                            if (btn) btn.style.display = 'none';
+                            if (header) header.textContent = username || '';
+                        }
+                    }
+                }
+            } catch(e) {}
+        });
 
         // Current messaging target: { type: 'public'|'dm'|'group', id: string|null, label: string }
         var currentChannel = { type: 'public', id: null, label: 'Public' };
@@ -553,7 +606,11 @@
         var savedUser = localStorage.getItem('chatUsername');
         if (savedUser) {
             username = savedUser;
-            isAdmin = localStorage.getItem('chatAdmin') === 'true';
+            // Only honor stored admin flag if an ADMIN_HASH is configured
+            isAdmin = (typeof HAS_ADMIN_HASH !== 'undefined' && HAS_ADMIN_HASH) && localStorage.getItem('chatAdmin') === 'true';
+            if (!isAdmin) {
+                try { localStorage.setItem('chatAdmin', 'false'); } catch(e) {}
+            }
             document.getElementById('usernameModal').style.display = 'none';
             document.getElementById('headerUser').textContent = username + (isAdmin ? ' ⭐' : '');
             enableChat();
@@ -605,13 +662,13 @@
             username = name;
             localStorage.setItem('chatUsername', username);
 
-            // Check admin password via hash comparison
-            var adminPw = document.getElementById('adminInput').value;
-            if (adminPw) {
+            // Check admin password via hash comparison (only if admin hash configured)
+            var adminPw = (document.getElementById('adminInput') || {}).value || '';
+            if (typeof HAS_ADMIN_HASH !== 'undefined' && HAS_ADMIN_HASH && adminPw) {
                 var hash = await hashPassword(adminPw);
                 if (hash === ADMIN_HASH) {
                     isAdmin = true;
-                    localStorage.setItem('chatAdmin', 'true');
+                    try { localStorage.setItem('chatAdmin', 'true'); } catch(e) {}
                 }
             }
 
@@ -762,6 +819,22 @@
                 text: name + ' was unmuted by ' + username,
                 ts: firebase.database.ServerValue.TIMESTAMP
             });
+        }
+
+        function revokeAdmin(name) {
+            if (!isAdmin || !name) return;
+            try {
+                var lower = name.toLowerCase();
+                if (username && lower === username.toLowerCase()) return;
+                if (!confirm('Revoke admin privileges from ' + name + '?')) return;
+                adminsRef.child(lower).remove().then(function() {
+                    chatRef.push({
+                        type: 'system',
+                        text: name + ' was demoted by ' + username,
+                        ts: firebase.database.ServerValue.TIMESTAMP
+                    });
+                }).catch(function(err) { console.error('revokeAdmin failed', err); });
+            } catch (e) { console.error('revokeAdmin error', e); }
         }
 
         function clearChat() {
@@ -971,6 +1044,140 @@
             title.textContent = '⚙️ Admin Panel';
             panel.appendChild(title);
 
+            // Admins section (server-managed admin list)
+            var ah = document.createElement('h4');
+            ah.textContent = '⭐ Admins';
+            panel.appendChild(ah);
+            // show placeholder while loading
+            var adminsPlaceholder = document.createElement('div');
+            adminsPlaceholder.className = 'admin-empty';
+            adminsPlaceholder.textContent = 'Loading admins...';
+            panel.appendChild(adminsPlaceholder);
+
+            // Fetch live admins list and render (avoid stale or empty UI)
+            adminsRef.once('value').then(function(snapAdmin) {
+                try {
+                    var adminsObj = snapAdmin.val();
+                    if (!adminsObj || typeof adminsObj !== 'object') { adminsObj = {}; }
+
+                    // Fallback: if the snapshot is empty but we have a cached `admins` from the on() listener, use that
+                    if (Object.keys(adminsObj).length === 0 && admins && typeof admins === 'object' && Object.keys(admins).length > 0) {
+                        console.warn('openAdminPanel: using cached admins as fallback');
+                        adminsObj = admins;
+                    }
+
+                    if (adminsPlaceholder.parentNode) adminsPlaceholder.parentNode.removeChild(adminsPlaceholder);
+                    var adminKeys = Object.keys(adminsObj);
+                    if (adminKeys.length === 0) {
+                        var emptyAdmins = document.createElement('div');
+                        emptyAdmins.className = 'admin-empty';
+                        emptyAdmins.textContent = 'No admins';
+                        panel.appendChild(emptyAdmins);
+                    } else {
+                        adminKeys.forEach(function(uKey) {
+                            var u = String(uKey || '');
+                            var item = document.createElement('div');
+                            item.className = 'admin-list-item';
+                            var span = document.createElement('span');
+                            span.textContent = u + ((typeof username === 'string' && username.toLowerCase() === u.toLowerCase()) ? ' (you)' : '');
+                            item.appendChild(span);
+                            if (isAdmin && typeof username === 'string' && username.toLowerCase() !== u.toLowerCase()) {
+                                var btn = document.createElement('button');
+                                btn.textContent = 'Revoke';
+                                btn.onclick = function() {
+                                    if (confirm('Revoke admin privileges from ' + u + '?')) {
+                                        revokeAdmin(u);
+                                        overlay.remove();
+                                    }
+                                };
+                                item.appendChild(btn);
+                            }
+                            panel.appendChild(item);
+                        });
+                    }
+
+                    // Append a small debug dump so we can inspect what the client saw
+                    var dbg = document.createElement('pre');
+                    dbg.style.cssText = 'background:#071229;color:#9ae6b4;padding:8px;border-radius:6px;margin-top:8px;max-height:160px;overflow:auto;font-size:0.75rem;';
+                    dbg.textContent = 'Admins snapshot:\n' + JSON.stringify(adminsObj, null, 2) + '\n\nCached admins var:\n' + JSON.stringify(admins || {}, null, 2);
+                    panel.appendChild(dbg);
+                } catch (e) {
+                    if (adminsPlaceholder.parentNode) adminsPlaceholder.parentNode.removeChild(adminsPlaceholder);
+                    var errDiv = document.createElement('div');
+                    errDiv.className = 'admin-empty';
+                    errDiv.textContent = 'Error loading admins: ' + (e && e.message ? e.message : String(e));
+                    panel.appendChild(errDiv);
+                    console.error('openAdminPanel: failed to render admins', e);
+
+                    // If we have a cached admins object, render that as a last-resort fallback so revoke UI can still appear
+                    try {
+                        if (admins && typeof admins === 'object' && Object.keys(admins).length > 0) {
+                            var fbHeader = document.createElement('div');
+                            fbHeader.className = 'admin-empty';
+                            fbHeader.textContent = 'Showing cached admins (fallback)';
+                            panel.appendChild(fbHeader);
+                            Object.keys(admins).forEach(function(k) {
+                                var u = String(k || '');
+                                var item = document.createElement('div');
+                                item.className = 'admin-list-item';
+                                var span = document.createElement('span');
+                                span.textContent = u + ((typeof username === 'string' && username.toLowerCase() === u.toLowerCase()) ? ' (you)' : '');
+                                item.appendChild(span);
+                                if (isAdmin && typeof username === 'string' && username.toLowerCase() !== u.toLowerCase()) {
+                                    var btn = document.createElement('button');
+                                    btn.textContent = 'Revoke';
+                                    btn.onclick = function() {
+                                        if (confirm('Revoke admin privileges from ' + u + '?')) {
+                                            revokeAdmin(u);
+                                            overlay.remove();
+                                        }
+                                    };
+                                    item.appendChild(btn);
+                                }
+                                panel.appendChild(item);
+                            });
+                        }
+                    } catch (ee) { console.error('openAdminPanel fallback render failed', ee); }
+                }
+            }).catch(function(err) {
+                if (adminsPlaceholder.parentNode) adminsPlaceholder.parentNode.removeChild(adminsPlaceholder);
+                var errDiv = document.createElement('div');
+                errDiv.className = 'admin-empty';
+                errDiv.textContent = 'Error loading admins: ' + (err && err.message ? err.message : String(err));
+                panel.appendChild(errDiv);
+                console.error('openAdminPanel adminsRef.once error', err);
+
+                // also show cached admins if present
+                try {
+                    if (admins && typeof admins === 'object' && Object.keys(admins).length > 0) {
+                        var fbHeader = document.createElement('div');
+                        fbHeader.className = 'admin-empty';
+                        fbHeader.textContent = 'Showing cached admins (fallback)';
+                        panel.appendChild(fbHeader);
+                        Object.keys(admins).forEach(function(k) {
+                            var u = String(k || '');
+                            var item = document.createElement('div');
+                            item.className = 'admin-list-item';
+                            var span = document.createElement('span');
+                            span.textContent = u + ((typeof username === 'string' && username.toLowerCase() === u.toLowerCase()) ? ' (you)' : '');
+                            item.appendChild(span);
+                            if (isAdmin && typeof username === 'string' && username.toLowerCase() !== u.toLowerCase()) {
+                                var btn = document.createElement('button');
+                                btn.textContent = 'Revoke';
+                                btn.onclick = function() {
+                                    if (confirm('Revoke admin privileges from ' + u + '?')) {
+                                        revokeAdmin(u);
+                                        overlay.remove();
+                                    }
+                                };
+                                item.appendChild(btn);
+                            }
+                            panel.appendChild(item);
+                        });
+                    }
+                } catch (ee) { console.error('openAdminPanel fallback render failed', ee); }
+            });
+
             // Banned users section
             var bh = document.createElement('h4');
             bh.textContent = '🚫 Banned Users';
@@ -1127,7 +1334,14 @@
             document.getElementById('usernameInput').value = '';
             document.getElementById('adminInput').value = '';
             document.getElementById('adminField').style.display = 'none';
-            document.querySelector('.admin-toggle').style.display = 'block';
+            try {
+                var toggle = document.querySelector('.admin-toggle');
+                if (typeof HAS_ADMIN_HASH !== 'undefined' && HAS_ADMIN_HASH) {
+                    if (toggle) toggle.style.display = 'block';
+                } else {
+                    if (toggle) toggle.style.display = 'none';
+                }
+            } catch (e) {}
             document.getElementById('usernameInput').focus();
         }
 
