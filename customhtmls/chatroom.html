@@ -879,7 +879,9 @@
             currentChannel.type = 'public';
             currentChannel.id = null;
             currentChannel.label = 'Public';
-            document.getElementById('currentChannel').textContent = '[' + currentChannel.label + ']';
+            // hide the channel label in header (remove the "[Public]" text)
+            var ccEl = document.getElementById('currentChannel');
+            if (ccEl) ccEl.textContent = '';
             // Only public channel is supported now — attach public message listener
             attachMessageListener(chatRef);
         }
