@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zaapiz Game Corner</title>
+    <title>ZaapizProxy</title>
     <script src="https://cdn.jsdelivr.net/gh/Destroyed12121/Staticsj@main/JS/scramjet.all.js" defer></script>
     <script type="module">
         import * as BareMux from "https://cdn.jsdelivr.net/npm/@mercuryworkshop/bare-mux/dist/index.mjs";
@@ -12,13 +12,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         :root {
-            --bg: #000000;
+            --bg: #1e293b;
             --sidebar-bg: var(--bg);
-            --accent: #6ecbff;
+            --accent: linear-gradient(135deg, #6699ff, #ff7ab8);
             --accent-glow: rgba(110, 203, 255, 0.3);
             --text-primary: #ffffff;
             --text-dim: #94a3b8;
-            --border: rgba(110, 203, 255, 0.08);
+            --border: #6699ff;
             --font: 'Courier New', monospace;
             --card-bg: rgba(255, 255, 255, 0.03);
             --input-bg: rgba(255, 255, 255, 0.05);
@@ -55,13 +55,6 @@
             z-index: -1;
             pointer-events: none;
         }
-        /* ════════════════════════════════════════
-           PROXY BROWSER — integrated CSS
-           .settings-card/.settings-header renamed to
-           .proxy-wisp-card/.proxy-wisp-header to avoid
-           conflicts with Zaapiz Game Corner's own settings CSS.
-           ════════════════════════════════════════ */
-
         /* ── BROWSER LAYOUT ── */
         .browser-container {
           width: 100%;
@@ -152,7 +145,11 @@
           text-overflow: ellipsis;
         }
         .tab.active .tab-title {
-          color: var(--accent);
+          background-image: var(--accent);
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+          color: transparent;
           text-shadow: 0 0 10px var(--accent-glow);
         }
         .tab-close {
@@ -205,6 +202,9 @@
         .new-tab:hover svg {
           stroke: var(--accent);
         }
+
+        .gl-logo svg { display: inline-block; vertical-align: middle; }
+        .gl-logo svg polygon { filter: drop-shadow(0 0 8px var(--accent-glow)); }
 
         /* ── NAV BAR ── */
         .proxy-nav {
@@ -734,7 +734,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>New Tab | Zaapiz Game Corner</title>
+  <title>New Tab | GhostLink</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root {
@@ -817,6 +817,12 @@
       line-height: 1.1;
       margin-bottom: 24px;
       color: var(--accent);
+      text-shadow: 0 0 10px var(--accent-glow);
+    }
+    .gl-title span#typewriter {
+      color: var(--accent);
+      border-right: 3px solid var(--accent);
+      padding-right: 5px;
       text-shadow: 0 0 10px var(--accent-glow);
     }
     .search-wrap { width: 100%; margin-bottom: 36px; }
@@ -1103,8 +1109,18 @@
   </div>
   <div class="content">
     <div class="hero-block">
-      <div class="gl-logo">◈</div>
-      <h1 class="gl-title">Zaapiz Game Corner</h1>
+      <div class="gl-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false" style="vertical-align:middle; overflow:visible;">
+          <defs>
+            <linearGradient id="cottonCandyGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6699ff"/>
+              <stop offset="100%" stop-color="#ff7ab8"/>
+            </linearGradient>
+          </defs>
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="url(#cottonCandyGradient)" stroke="none"/>
+        </svg>
+      </div>
+      <h1 class="gl-title">Welcome to<br><span id="typewriter"></span></h1>
     </div>
     <form class="search-wrap" id="searchForm">
       <div class="search-box">
@@ -1142,33 +1158,7 @@
     </div>
   </div>
   <script>
-    // Receive live theme updates from the parent page
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'ZAAPIZ_NT_THEME') {
-        const t = e.data.theme;
-        const r = document.documentElement;
-        if (t.bg)            r.style.setProperty('--bg',            t.bg);
-        if (t.accent)        r.style.setProperty('--accent',        t.accent);
-        if (t.accentGlow)    r.style.setProperty('--accent-glow',   t.accentGlow);
-        if (t.textPrimary)   r.style.setProperty('--text-primary',  t.textPrimary);
-        if (t.textDim)       r.style.setProperty('--text-dim',      t.textDim);
-        if (t.border)        r.style.setProperty('--border',        t.border);
-        if (t.cardBg)        r.style.setProperty('--card-bg',       t.cardBg);
-        if (t.inputBg)       r.style.setProperty('--input-bg',      t.inputBg);
-        if (t.font)          r.style.setProperty('--font',          t.font);
-        if (t.bgImage)       r.style.setProperty('--bg-image',      t.bgImage);
-        if (t.bgBlur)        r.style.setProperty('--bg-blur',       t.bgBlur);
-        if (t.bgBrightness)  r.style.setProperty('--bg-brightness', t.bgBrightness);
-        document.body.style.backgroundColor = t.bg || '';
-        document.body.style.color = t.textPrimary || '';
-        document.body.style.fontFamily = t.font || '';
-      }
-    });
-    // Tell the parent we are ready so it can push the current theme immediately
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage({ type: 'ZAAPIZ_NT_READY' }, '*');
-    }
-
+    // Theme sync removed
     function navigate(url) {
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ type: 'navigate', url }, '*');
@@ -1226,6 +1216,21 @@
       });
     }
     renderShortcuts();
+    // NT template typewriter effect (rotating welcome words)
+    const ntWords = ["Zaapiz Proxy", "Zaapiz Game Corner", "Cotton Candyyyy", "The Hub :p"];
+    let ntWordIdx = 0, ntCharIdx = 0, ntIsDeleting = false;
+    function ntType() {
+      const target = document.getElementById("typewriter");
+      if (!target) return;
+      const currentWord = ntWords[ntWordIdx];
+      target.textContent = currentWord.substring(0, ntCharIdx);
+      if (ntIsDeleting) ntCharIdx--; else ntCharIdx++;
+      let typeSpeed = ntIsDeleting ? 50 : 120;
+      if (!ntIsDeleting && ntCharIdx > currentWord.length) { ntIsDeleting = true; typeSpeed = 2000; }
+      else if (ntIsDeleting && ntCharIdx < 0) { ntIsDeleting = false; ntWordIdx = (ntWordIdx + 1) % ntWords.length; ntCharIdx = 0; typeSpeed = 500; }
+      setTimeout(ntType, typeSpeed);
+    }
+    ntType();
     const closeModal = () => document.getElementById('addModal').classList.add('hidden');
     document.getElementById('cancelAdd').onclick = closeModal;
     document.getElementById('cancelAdd2').onclick = closeModal;
@@ -1251,57 +1256,7 @@
 </html></template>
 
     <script>
-        function sendThemeToIframe() {
-            const iframe = document.getElementById('app-frame');
-            if (!iframe || !iframe.contentWindow) return;
-
-            const styles = getComputedStyle(document.documentElement);
-            const theme = {
-                accent: styles.getPropertyValue('--accent').trim(),
-                bg: styles.getPropertyValue('--bg').trim(),
-                font: styles.getPropertyValue('--font').trim()
-            };
-
-            iframe.contentWindow.postMessage({
-                type: 'ZAAPIZ_THEME_DATA',
-                theme: theme
-            }, '*');
-        }
-
-        function sendThemeToNtTabs() {
-            if (typeof tabs === 'undefined' || !tabs.length) return;
-            const s = getComputedStyle(document.documentElement);
-            const g = (v) => s.getPropertyValue(v).trim();
-            const theme = {
-                bg:            g('--bg'),
-                accent:        g('--accent'),
-                accentGlow:    g('--accent-glow'),
-                textPrimary:   g('--text-primary'),
-                textDim:       g('--text-dim'),
-                border:        g('--border'),
-                cardBg:        g('--card-bg'),
-                inputBg:       g('--input-bg'),
-                font:          g('--font'),
-                bgImage:       g('--bg-image'),
-                bgBlur:        g('--bg-blur'),
-                bgBrightness:  g('--bg-brightness'),
-            };
-            tabs.forEach(tab => {
-                const isNt = !tab.url || tab.url === 'NT.html' || (tab.url && tab.url.startsWith('blob:'));
-                if (isNt && tab.frame && tab.frame.frame && tab.frame.frame.contentWindow) {
-                    try { tab.frame.frame.contentWindow.postMessage({ type: 'ZAAPIZ_NT_THEME', theme }, '*'); } catch(e) {}
-                }
-            });
-        }
-
-        window.addEventListener('message', (event) => {
-            if (event.data.type === 'ZAAPIZ_QUERY_THEME') {
-                sendThemeToIframe();
-            }
-            if (event.data.type === 'ZAAPIZ_NT_READY') {
-                sendThemeToNtTabs();
-            }
-        });
+        // Theme sync functions removed
 
         let proxyBrowserInitialized = false;
         let WISP_SERVERS = [];
@@ -1705,7 +1660,7 @@
                         const _origOpen = cw.open.bind(cw);
                         cw.open = function(url, target, features) {
                             if (url && url !== 'about:blank' && url !== '' && typeof url === 'string') {
-                                // Post to parent Zaapiz Game Corner to open as a new proxy tab
+                                // Post to parent GhostLink to open as a new proxy tab
                                 window.postMessage({ type: 'gl_open_tab', url: url }, '*');
                                 return null;
                             }
@@ -2155,7 +2110,7 @@
                             animation:spin 0.8s linear infinite;">
                         </div>
                         <div style="font-size:0.65rem; letter-spacing:3px; text-transform:uppercase; color:var(--accent); margin-bottom:20px; text-shadow:0 0 8px var(--accent-glow);">
-                            ZAAPIZ GAME CORNER PROXY
+                          
                         </div>
                         <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
                             ${_piSteps.map(s => `
